@@ -7,7 +7,7 @@ setup(
     name="ancsh",
     version="1.0",
     author="3dlg-hcvc",
-    url="https://github.com/3dlg-hcvc/articulated-pose-Pytorch.git",
+    url="https://github.com/3dlg-hcvc/ANCSH-pytorch.git",
     packages=find_packages(exclude=("configs", "tests")),
     include_package_data=True,
     install_requires=requirements,
