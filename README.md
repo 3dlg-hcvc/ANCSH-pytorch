@@ -18,6 +18,7 @@ cd articulated-pose-Pytorch
 ```bash
 conda create -n ancsh python=3.7
 conda activate ancsh
+pip install -e .
 ```
 
 ## Running Experiments
