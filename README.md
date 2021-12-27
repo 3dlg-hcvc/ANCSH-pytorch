@@ -11,14 +11,16 @@ Our implementation is based on the Pointnet2/Pointnet++ PyTorch Implemention fro
 ### Installation
 - git clone the repo
 ```bash
-git clone https://github.com/3dlg-hcvc/articulated-pose-Pytorch.git
-cd articulated-pose-Pytorch
+git clone https://github.com/3dlg-hcvc/ANCSH-pytorch.git
+cd ANCSH-pytorch
 ```
 - create a python environment
 ```bash
 conda create -n ancsh python=3.7
 conda activate ancsh
 pip install -e .
+pip install torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
+pip install "git+git://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet2_ops&subdirectory=pointnet2_ops_lib"
 ```
 
 ## Running Experiments
