@@ -11,7 +11,7 @@ class ANCSH(nn.Module):
         # segmentation branch
         self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding='valid')
         # NPCS branch 
-        self.NPCS_layer = nn.Sequential(
+        self.npcs_layer = nn.Sequential(
             nn.Conv1d(128, 128, kernel_size=1, padding='valid'),
             nn.Conv1d(128, 3*num_parts, kernel_size=1, padding='valid')
         )
@@ -41,7 +41,7 @@ class ANCSH(nn.Module):
     def forward(self, input):
         features = self.backbone(input)
         pred_seg_per_point = self.seg_layer(features)
-        pred_NPCS_per_point = self.NPCS_layer(features)
+        pred_npcs_per_point = self.npcs_layer(features)
         pred_scale_per_point = self.scale_layer(features)
         pred_trans_per_point = self.trans_layer(features)
         pred_conf_per_point = self.conf_layer(features)
@@ -58,7 +58,7 @@ class ANCSH(nn.Module):
         
         pred_seg_per_point = F.softmax(pred_seg_per_point, dim=2)
         pred_conf_per_point = F.sigmoid(pred_conf_per_point)
-        pred_NPCS_per_point = F.sigmoid(pred_NPCS_per_point)
+        pred_npcs_per_point = F.sigmoid(pred_npcs_per_point)
 
         pred_heatmap_per_point = F.sigmoid(pred_heatmap_per_point)
         pred_unitvec_per_point = F.tanh(pred_unitvec_per_point)
@@ -67,11 +67,11 @@ class ANCSH(nn.Module):
         
         # Calculate the NAOCS per point
         pred_scale_per_point_repeat = pred_scale_per_point.repeat(1, 1, 3)
-        pred_NAOCS_per_point = pred_NPCS_per_point * pred_scale_per_point_repeat + pred_trans_per_point
+        pred_naocs_per_point = pred_npcs_per_point * pred_scale_per_point_repeat + pred_trans_per_point
 
         pred = {
             'seg_per_point': pred_seg_per_point,
-            'NPCS_per_point': pred_NPCS_per_point,
+            'NPCS_per_point': pred_npcs_per_point,
             'conf_per_point': pred_conf_per_point,
             'heatmap_per_point': pred_heatmap_per_point,
             'unit_vec_per_point': pred_unitvec_per_point,
@@ -79,7 +79,7 @@ class ANCSH(nn.Module):
             'joint_cls_per_point': pred_joint_cls_per_point,
             'scale_per_point': pred_scale_per_point,
             'trans_per_point': pred_trans_per_point,
-            'NAOCS_per_point': pred_NAOCS_per_point
+            'NAOCS_per_point': pred_naocs_per_point
         }
 
 
