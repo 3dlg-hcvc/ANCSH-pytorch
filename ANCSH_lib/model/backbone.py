@@ -41,7 +41,7 @@ class PointNet2(nn.Module):
         self.fp_module_3 = PointnetFPModule(mlp=[3+128, 128, 128, 128])
 
         self.fc_layer = nn.Sequential(
-            nn.Conv1d(128, 128, kernel_size=1, bias=False),
+            nn.Conv1d(128, 128, kernel_size=1, padding='valid', bias=False),
             nn.BatchNorm1d(128),
             nn.ReLU(True),
             nn.dropout(0.5)
