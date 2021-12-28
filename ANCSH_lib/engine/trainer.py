@@ -9,7 +9,7 @@ def build_model():
     model = ANCSH()
     return model
 
-class Trainer:
+class ANCSHTrainer:
     def __init__(self, data_path, max_epochs, lr=0.001, device=None):
         # data_path is a dictionary {'train', 'test'}
         if device == None:
