@@ -1,1 +1,1 @@
-from .model import ANCSH
+from .engine import ANCSHTrainer
