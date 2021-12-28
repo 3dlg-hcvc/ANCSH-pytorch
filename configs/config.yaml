@@ -1,2 +1,16 @@
+version: "v1.0"
+
+data:
+  dataset_dir: "./datasets/sapien"
+  preprocess_result_dir: "${data.dataset_dir}/preprocessed"
+
+
 defaults:
+  - preprocess: sapien
   - network: ANCSH
+  - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
+
+# hydra configuration log output dir
+hydra:
+  run:
+    dir: "logs/configs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
