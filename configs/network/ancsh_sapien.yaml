@@ -1,2 +1,4 @@
-max_epochs: 260000
+network_type: "ancsh"
+
+max_epochs: 250000
 num_parts: 4

@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class ANCSHTrainer:
-    def __init__(self, data_path, num_parts, max_epochs, lr=0.001, device=None):
+    def __init__(self, data_path, network_type, num_parts, max_epochs, lr=0.001, device=None):
         # data_path is a dictionary {'train', 'test'}
         if device == None:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -14,6 +14,7 @@ class ANCSHTrainer:
 
         self.writer = SummaryWriter()
 
+        self.network_type = network_type
         self.num_parts = num_parts
         self.max_epochs = max_epochs
         self.model = self.build_model()
@@ -31,7 +32,7 @@ class ANCSHTrainer:
         )
 
     def build_model(self):
-        model = ANCSH(self.num_parts)
+        model = ANCSH(self.network_type, self.num_parts)
         return model
 
     def train(self):
@@ -49,6 +50,7 @@ class ANCSHTrainer:
                 loss_dict = self.model.losses(pred, gt)
 
                 loss = torch.tensor(0.0, device=self.device)
+                # todo: add loss weights to the config
                 for k, v in loss_dict:
                     if k == "npcs_loss":
                         loss += 10 * v
