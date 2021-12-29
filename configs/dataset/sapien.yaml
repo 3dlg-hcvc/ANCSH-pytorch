@@ -1,0 +1,19 @@
+name: "SAPIEN"
+
+input:
+  render:
+    folder_name: "render"
+    depth_folder: "depth"
+    depth_ext: ".h5"
+    mask_folder: "mask"
+    mask_ext: ".png"
+    metadata_file: "gt.yml"
+
+  motion:
+    folder_name: "urdf"
+    motion_file: "syn.urdf"
+
+  part_order_file: "part_order.json"
+
+param:
+  joint_association_threshold: 0.2

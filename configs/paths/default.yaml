@@ -1,18 +1,22 @@
 version: "1.0"
 
-dataset_dir: ??? # absolute path to specified dataset folder
+dataset_dir: ??? # path to datasets folder
+result_dir: ??? # path to result folder
 
 preprocess:
   input_dir: "${paths.dataset_dir}"
-  output_dir: "${paths.dataset_dir}/preprocessed"
+  output_dir: "${paths.result_dir}/preprocess"
   tmp_dir: "${paths.preprocess.output_dir}/tmp"
   result_dir: "${paths.preprocess.output_dir}"
 
-  input:
-    depth_folder: "depth"
-    mask_folder: "mask"
-    metadata_file: "metadata.yaml"
-    rgb_folder: "rgb" # optional for visualization
+  stage1:
+    input: paths # overwrite based on dataset selection at runtime
+    tmp_output:
+      pcd_camera: "pcd_camera_%05d.ply"
+      pcd_rest_state: "pcd_rest_state_%05d.ply"
+      normalize_info: "normalize_info.json"
+      part_order: "part_order.json"
+      joint_params: "joint_params.json"
 
   output:
     train: "${paths.preprocess.result_dir}/train.h5"
