@@ -5,23 +5,14 @@ from omegaconf import DictConfig, OmegaConf
 
 import argparse
 
-def get_parser():
-    parser = argparse.ArgumentParser(description="Train ANCSH model")
-    parser.add_argument(
-        "--test",
-        action="store_true",
-        help="indicate whether it's training or inferencing",
-    )
-
-    return parser
-
 @hydra.main(config_path="configs", config_name="network")
 def main(cfg):
-    # args = get_parser().parse_args()
-    # conf = OmegaConf.to_yaml(cfg)
-    print(cfg.test==True)
-    # trainer = ANCSHTrainer(data_path=args.data_path, max_epochs=1000)
-    # if not args.test:
+    train_path = cfg.paths.dirs.preprocess_result_dir + cfg.paths.train_name
+    test_path = cfg.paths.dirs.preprocess_result_dir + cfg.paths.test_name
+    data_path = {"train": train_path, "test": test_path}
+
+    trainer = ANCSHTrainer(data_path=data_path, num_parts=cfg.network.num_parts, max_epochs=cfg.network.max_epochs)
+    # if not cfg.test:
     #     trainer.train()
     # else:
     #     trainer.test()
