@@ -1,0 +1,13 @@
+version: "v1.0"
+
+test: ???
+
+defaults:
+  - paths: paths
+  - network: ???
+  - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
+
+# hydra configuration log output dir
+hydra:
+  run:
+    dir: "config_logs/network/${now:%Y-%m-%d}/${now:%H-%M-%S}"

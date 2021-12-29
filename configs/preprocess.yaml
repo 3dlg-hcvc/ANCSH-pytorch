@@ -1,14 +1,10 @@
-settings:
-  debug: true
-  version: "1.0"
-  parallel: false # multiprocessing during multiway registration
-  cpu_num: 8 # number of cpu units in multiprocessing
+version: "v1.0"
 
 defaults:
-  - paths: default
+  - paths: paths
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
 # hydra configuration log output dir
 hydra:
   run:
-    dir: "${paths.preprocess.output_dir}/logs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+    dir: "config_logs/preprocess/${now:%Y-%m-%d}/${now:%H-%M-%S}"
