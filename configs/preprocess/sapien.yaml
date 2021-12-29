@@ -1,0 +1,20 @@
+settings:
+  debug: true
+  version: "1.0"
+  parallel: false # multiprocessing during multiway registration
+  cpu_num: 8 # number of cpu units in multiprocessing
+
+input:
+  dataset_dir: "${data.dataset_dir}"
+  depth_folder: "depth"
+  mask_folder: "mask"
+  metadata_file: "metadata.yaml"
+  rgb_folder: "rgb" # optional for visualization
+
+output:
+  output_dir: "${data.preprocess_result_dir}"
+
+# hydra configuration log output dir
+hydra:
+  run:
+    dir: "${data.preprocess_result_dir}/configs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
