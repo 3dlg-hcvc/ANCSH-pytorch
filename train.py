@@ -7,8 +7,8 @@ import argparse
 
 @hydra.main(config_path="configs", config_name="network")
 def main(cfg):
-    train_path = cfg.paths.dirs.preprocess_result_dir + cfg.paths.train_name
-    test_path = cfg.paths.dirs.preprocess_result_dir + cfg.paths.test_name
+    train_path = cfg.paths.preprocess.output.train
+    test_path = cfg.paths.preprocess.output.val
     data_path = {"train": train_path, "test": test_path}
 
     trainer = ANCSHTrainer(data_path=data_path, num_parts=cfg.network.num_parts, max_epochs=cfg.network.max_epochs)
