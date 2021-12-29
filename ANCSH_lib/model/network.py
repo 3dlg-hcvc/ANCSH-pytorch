@@ -24,11 +24,11 @@ class ANCSH(nn.Module):
             nn.Conv1d(128, 128, kernel_size=1, padding='valid', bias=False),
             nn.BatchNorm1d(128),
             nn.ReLU(True),
-            nn.dropout(0.5),
+            nn.Dropout(0.5),
             nn.Conv1d(128, 128, kernel_size=1, padding='valid', bias=False),
             nn.BatchNorm1d(128),
             nn.ReLU(True),
-            nn.dropout(0.5)
+            nn.Dropout(0.5)
         )
         # Joint UNitVec, heatmap, joint_cls
         self.axis_layer = nn.Conv1d(128, 3, kernel_size=1, padding='valid')

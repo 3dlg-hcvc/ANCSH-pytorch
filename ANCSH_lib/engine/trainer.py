@@ -5,12 +5,8 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 
-def build_model():
-    model = ANCSH()
-    return model
-
 class ANCSHTrainer:
-    def __init__(self, data_path, max_epochs, lr=0.001, device=None):
+    def __init__(self, data_path, num_parts, max_epochs, lr=0.001, device=None):
         # data_path is a dictionary {'train', 'test'}
         if device == None:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -18,6 +14,7 @@ class ANCSHTrainer:
 
         self.writer = SummaryWriter()
 
+        self.num_parts = num_parts
         self.max_epochs = max_epochs
         self.model = self.build_model()
         self.model.to(device)
@@ -27,8 +24,15 @@ class ANCSHTrainer:
 
         self.data_path = data_path
         self.train_loader = torch.utils.data.DataLoader(
-            ANCSHDataset(self.data_path['train'], batch_size=16, shuffle=True, num_workers=4)
+            ANCSHDataset(self.data_path["train"]),
+            batch_size=16,
+            shuffle=True,
+            num_workers=4,
         )
+
+    def build_model(self):
+        model = ANCSH(self.num_parts)
+        return model
 
     def train(self):
         self.model.train()
@@ -46,7 +50,7 @@ class ANCSHTrainer:
 
                 loss = torch.tensor(0.0, device=self.device)
                 for k, v in loss_dict:
-                    if k == 'npcs_loss':
+                    if k == "npcs_loss":
                         loss += 10 * v
                     else:
                         loss += v
@@ -58,7 +62,9 @@ class ANCSHTrainer:
 
     def test(self):
         test_loader = torch.utils.data.DataLoader(
-            ANCSHDataset(self.data_path['test'], batch_size=16, shuffle=False, num_workers=4)
+            ANCSHDataset(
+                self.data_path["test"], batch_size=16, shuffle=False, num_workers=4
+            )
         )
         self.model.eval()
         with torch.no_grad():
@@ -72,15 +78,3 @@ class ANCSHTrainer:
                 pred = self.model(camera_per_point)
                 # todo: Save the results
                 pass
-
-                
-
-
-
-                
-
-
-
-
-
-
