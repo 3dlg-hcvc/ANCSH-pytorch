@@ -15,10 +15,10 @@ def main(cfg):
     network_type = cfg.network.network_type
 
     trainer = ANCSHTrainer(
+        cfg=cfg,
         data_path=data_path,
         network_type=network_type,
         num_parts=cfg.network.num_parts,
-        max_epochs=cfg.network.max_epochs,
     )
     # if not cfg.test:
     #     trainer.train()

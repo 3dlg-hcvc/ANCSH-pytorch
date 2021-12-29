@@ -1,4 +1,7 @@
-network_type: "npcs"
+defaults:
+  - default
+  - _self_ 
 
+network_type: "npcs"
 max_epochs: 260000
 num_parts: 4

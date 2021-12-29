@@ -6,7 +6,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class ANCSHTrainer:
-    def __init__(self, data_path, network_type, num_parts, max_epochs, lr=0.001, device=None):
+    def __init__(self, cfg, data_path, network_type, num_parts, device=None):
+        self.cfg = cfg
         # data_path is a dictionary {'train', 'test'}
         if device == None:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -16,19 +17,19 @@ class ANCSHTrainer:
 
         self.network_type = network_type
         self.num_parts = num_parts
-        self.max_epochs = max_epochs
+        self.max_epochs = cfg.network.max_epochs
         self.model = self.build_model()
         self.model.to(device)
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr, betas=(0.9, 0.99))
+        self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.network.lr, betas=(0.9, 0.99))
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
 
         self.data_path = data_path
         self.train_loader = torch.utils.data.DataLoader(
             ANCSHDataset(self.data_path["train"]),
-            batch_size=16,
+            batch_size=cfg.network.batch_size,
             shuffle=True,
-            num_workers=4,
+            num_workers=cfg.network.num_workers,
         )
 
     def build_model(self):
@@ -50,12 +51,12 @@ class ANCSHTrainer:
                 loss_dict = self.model.losses(pred, gt)
 
                 loss = torch.tensor(0.0, device=self.device)
+                loss_weight = self.cfg.network.loss_weight
                 # todo: add loss weights to the config
                 for k, v in loss_dict:
-                    if k == "npcs_loss":
-                        loss += 10 * v
-                    else:
-                        loss += v
+                    if k not in loss_weight:
+                        raise ValueError(f"No loss weight for {k}")
+                    loss += loss_weight[k] * v
 
                 self.optimizer.zero_grad()
                 loss.backward()
