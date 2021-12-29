@@ -19,7 +19,7 @@ def get_parser():
 def main(cfg):
     # args = get_parser().parse_args()
     # conf = OmegaConf.to_yaml(cfg)
-    print(cfg.test==True)
+    print(cfg)
     # trainer = ANCSHTrainer(data_path=args.data_path, max_epochs=1000)
     # if not args.test:
     #     trainer.train()

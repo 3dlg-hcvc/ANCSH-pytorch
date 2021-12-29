@@ -1,0 +1,2 @@
+dataset_dir: "./datasets/sapien"
+preprocess_result_dir: "${data.dataset_dir}/preprocessed"

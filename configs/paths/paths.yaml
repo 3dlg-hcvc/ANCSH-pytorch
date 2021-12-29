@@ -1,0 +1,7 @@
+train_name: "train.h5"
+val_name: "val.h5"
+test_name: "test.h5"
+
+
+defaults:
+  - dirs: shawn_lab
