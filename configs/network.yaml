@@ -10,4 +10,4 @@ defaults:
 # hydra configuration log output dir
 hydra:
   run:
-    dir: "logs/configs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+    dir: "config_logs/network/${now:%Y-%m-%d}/${now:%H-%M-%S}"
