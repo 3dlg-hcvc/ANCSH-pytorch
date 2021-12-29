@@ -25,6 +25,12 @@ pip install h5py
 ```
 
 ## Running Experiments
+- train the model
+```bash
+# Train the two models for SAPIEN drawer dataset
+python train.py network=ancsh_sapien test=False paths=shawn_lab
+python train.py network=npcs_sapien test=False paths=shawn_lab
+```
 
 
 
