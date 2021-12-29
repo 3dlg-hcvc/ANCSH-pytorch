@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from backbone import PointNet2
-import loss
+from ANCSH_lib.model.backbone import PointNet2
+import ANCSH_lib.model.loss as loss
 
 class ANCSH(nn.Module):
     def __init__(self, num_parts):
