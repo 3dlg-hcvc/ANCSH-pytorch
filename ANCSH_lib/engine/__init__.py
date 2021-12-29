@@ -1,1 +1,1 @@
-from trainer import ANCSHTrainer
+from .trainer import ANCSHTrainer
