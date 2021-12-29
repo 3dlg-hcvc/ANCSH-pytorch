@@ -1,0 +1,21 @@
+version: "1.0"
+
+dataset_dir: ??? # absolute path to specified dataset folder
+
+preprocess:
+  input_dir: "${paths.dataset_dir}"
+  output_dir: "${paths.dataset_dir}/preprocessed"
+  tmp_dir: "${paths.preprocess.output_dir}/tmp"
+  result_dir: "${paths.preprocess.output_dir}"
+
+  input:
+    depth_folder: "depth"
+    mask_folder: "mask"
+    metadata_file: "metadata.yaml"
+    rgb_folder: "rgb" # optional for visualization
+
+  output:
+    train: "${paths.preprocess.result_dir}/train.h5"
+    val: "${paths.preprocess.result_dir}/val.h5"
+    test: "${paths.preprocess.result_dir}/test.h5"
+    
