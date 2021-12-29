@@ -1,7 +1,0 @@
-data:
-  dataset_dir: ./datasets/sapien
-  preprocess_result_dir: ${data.dataset_dir}/preprocessed
-network:
-  test: 1
-version: v1.0
-test: true
