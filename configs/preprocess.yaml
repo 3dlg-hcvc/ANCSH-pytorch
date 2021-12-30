@@ -1,5 +1,7 @@
 version: "v1.0"
 
+debug: true
+
 defaults:
   - dataset: sapien
   - paths: default

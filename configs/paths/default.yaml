@@ -7,11 +7,12 @@ preprocess:
   input_dir: "${paths.dataset_dir}"
   output_dir: "${paths.result_dir}/preprocess"
   tmp_dir: "${paths.preprocess.output_dir}/tmp"
-  result_dir: "${paths.preprocess.output_dir}"
 
   stage1:
     input: paths # overwrite based on dataset selection at runtime
     tmp_output:
+      rest_state_data: "rest_state.json"
+      rest_state_mesh: "rest_state.ply"
       pcd_camera: "pcd_camera_%05d.ply"
       pcd_rest_state: "pcd_rest_state_%05d.ply"
       normalize_info: "normalize_info.json"

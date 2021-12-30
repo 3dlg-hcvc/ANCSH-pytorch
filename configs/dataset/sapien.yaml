@@ -11,7 +11,7 @@ input:
 
   motion:
     folder_name: "urdf"
-    motion_file: "syn.urdf"
+    motion_file: "mobility.urdf"
 
   part_order_file: "part_order.json"
 
