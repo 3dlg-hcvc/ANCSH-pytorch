@@ -6,7 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from tools.utils import io
 
-from utils import DataLoader, URDFReader
+from stage1 import ProcStage1
 
 
 @hydra.main(config_path="../configs", config_name="preprocess")
@@ -18,13 +18,9 @@ def main(cfg: DictConfig):
 
     assert io.folder_exist(cfg.paths.preprocess.input_dir), "Dataset directory doesn't exist"
     io.ensure_dir_exists(cfg.paths.preprocess.output_dir)
-    data_loader = DataLoader(cfg)
-    data_loader.parse_input()
-    # print(data_loader.data_info)
-    each = data_loader.data_info.iloc[0]
-    motion_file_path = os.path.join(data_loader.motion_dir, each['objectCat'], each['objectId'], each['motion'])
-    urdf_reader = URDFReader(motion_file_path)
-    urdf_reader.export(result_data_path=os.path.join(cfg.paths.preprocess.tmp_dir, each['objectCat'], each['objectId']))
+
+    process_stage1 = ProcStage1(cfg)
+    process_stage1.process_each()
 
 
 if __name__ == "__main__":

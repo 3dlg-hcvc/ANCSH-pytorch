@@ -7,6 +7,11 @@ defaults:
   - paths: default
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
+settings:
+  categories: ["drawer"]
+  object_ids: ["40453", "46653"]
+  articulation_ids: ["0", "1"]
+
 # hydra configuration log output dir
 hydra:
   run:
