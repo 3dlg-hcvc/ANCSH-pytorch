@@ -80,7 +80,7 @@ class ANCSHTrainer:
             self.scheduler.step()
             # Add the loss values into the tensorboard
             for k,v  in epoch_loss:
-                self.writer.add_scalar(f"loss/{k}", v/step_num)
+                self.writer.add_scalar(f"loss/{k}", v/step_num, epoch)
 
     def test(self):
         test_loader = torch.utils.data.DataLoader(
