@@ -13,13 +13,15 @@ class ANCSHTrainer:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.device = device
 
-        self.writer = SummaryWriter()
+        self.writer = SummaryWriter(cfg.paths.train.output_dir)
 
         self.network_type = network_type
         self.num_parts = num_parts
         self.max_epochs = cfg.network.max_epochs
         self.model = self.build_model()
         self.model.to(device)
+
+        print(f"Below is the network structure:\n {self.model}")
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.network.lr, betas=(0.9, 0.99))
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
@@ -31,6 +33,9 @@ class ANCSHTrainer:
             shuffle=True,
             num_workers=cfg.network.num_workers,
         )
+
+    def __del__(self):
+        self.writer.close()
 
     def build_model(self):
         model = ANCSH(self.network_type, self.num_parts)

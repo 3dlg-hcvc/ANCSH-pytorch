@@ -1,6 +1,7 @@
 version: "1.0"
 
 dataset_dir: ??? # absolute path to specified dataset folder
+project_dir: ???
 
 preprocess:
   input_dir: "${paths.dataset_dir}"
@@ -18,4 +19,7 @@ preprocess:
     train: "${paths.preprocess.result_dir}/train.h5"
     val: "${paths.preprocess.result_dir}/val.h5"
     test: "${paths.preprocess.result_dir}/test.h5"
+
+train:
+  output_dir: "${paths.project_dir}/train_output/${now:%Y-%m-%d}_${now:%H-%M-%S}"
     
