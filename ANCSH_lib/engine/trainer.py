@@ -1,9 +1,14 @@
+from torch.optim import optimizer
 from ANCSH_lib.model import ANCSH
 from ANCSH_lib.data import ANCSHDataset
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+import os
 
+def existDir(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
 
 class ANCSHTrainer:
     def __init__(self, cfg, data_path, network_type, num_parts, device=None):
@@ -81,6 +86,16 @@ class ANCSHTrainer:
             # Add the loss values into the tensorboard
             for k,v  in epoch_loss:
                 self.writer.add_scalar(f"loss/{k}", v/step_num, epoch)
+            
+            if epoch % self.cfg.model_frequncy == 0 or epoch == self.max_epochs - 1:
+                # Save the model 
+                existDir(f"{self.cfg.paths.project_paths}")
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                }, f"{self.cfg.paths.project_paths}/model_{epoch}.pth")
+
 
     def test(self):
         test_loader = torch.utils.data.DataLoader(
@@ -89,6 +104,10 @@ class ANCSHTrainer:
             )
         )
         self.model.eval()
+        # Load the model
+        checkpoint = torch.load(self.cfg.inference_model)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+
         with torch.no_grad():
             for camera_per_point, gt_dict in test_loader:
                 # Move the tensors to the device
@@ -96,7 +115,7 @@ class ANCSHTrainer:
                 gt = {}
                 for k, v in gt_dict:
                     gt[k] = v.to(self.device)
-                # Get the loss
+                    
                 pred = self.model(camera_per_point)
                 # todo: Save the results
                 pass
