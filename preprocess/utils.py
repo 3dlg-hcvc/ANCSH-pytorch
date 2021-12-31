@@ -1,5 +1,6 @@
 import os
 import trimesh
+import numpy as np
 import pandas as pd
 from enum import Enum
 from matplotlib import cm
@@ -26,6 +27,21 @@ class DatasetName(Enum):
 
 def rgba_by_index(index, cmap_name='Set1'):
     return list(cm.get_cmap(cmap_name)(index))
+
+
+def visualize_point_cloud(vertices, mask=None, export=None, show=True, window_name='Point Cloud'):
+    colors = None
+    if mask is not None:
+        unique_val = np.unique(mask)
+        colors = np.empty([vertices.shape[0], 4])
+        for i, val in enumerate(unique_val):
+            rgba = rgba_by_index(i)
+            colors[mask == val] = rgba
+    pcd = trimesh.points.PointCloud(vertices, colors=colors)
+    if export:
+        pcd.export(export)
+    if show:
+        pcd.show(caption=window_name)
 
 
 class DataLoader:

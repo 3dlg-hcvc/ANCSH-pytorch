@@ -14,11 +14,14 @@ preprocess:
       input_files: "input_files.csv"
       rest_state_data: "rest_state.json"
       rest_state_mesh: "rest_state.ply"
-      pcd_camera: "pcd_camera_%05d.ply"
-      pcd_rest_state: "pcd_rest_state_%05d.ply"
+      pcd_camera: "pcd_camera_%03d_%03d.ply"
+      pcd_world: "pcd_world_%03d_%03d.ply"
+      pcd_rest_state: "pcd_rest_state_%03d_%03d.ply"
       normalize_info: "normalize_info.json"
       part_order: "part_order.json"
       joint_params: "joint_params.json"
+    output:
+      pcd_data: "stage1_pcd.h5"
 
   output:
     train: "${paths.preprocess.result_dir}/train.h5"
