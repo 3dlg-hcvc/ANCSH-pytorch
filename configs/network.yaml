@@ -1,6 +1,8 @@
 version: "v1.0"
 
 test: ???
+model_frequency: 5000
+inference_model: ???
 
 defaults:
   - paths: ???

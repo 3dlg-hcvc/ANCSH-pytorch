@@ -22,4 +22,7 @@ preprocess:
 
 train:
   output_dir: "${paths.project_dir}/train_output/${now:%Y-%m-%d}_${now:%H-%M-%S}"
+
+test:
+  output_dir: "${paths.project_dir}/test_output/${now:%Y-%m-%d}_${now:%H-%M-%S}"
     

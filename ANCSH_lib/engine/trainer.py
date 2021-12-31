@@ -1,9 +1,15 @@
+from torch.optim import optimizer
 from ANCSH_lib.model import ANCSH
 from ANCSH_lib.data import ANCSHDataset
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+import os
+import h5py
 
+def existDir(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
 
 class ANCSHTrainer:
     def __init__(self, cfg, data_path, network_type, num_parts, device=None):
@@ -44,8 +50,11 @@ class ANCSHTrainer:
     def train(self):
         self.model.train()
         for epoch in range(self.max_epochs):
-            avg_loss = 0.0
+            epoch_loss = None
+            step_num = 0
             for camera_per_point, gt_dict in self.train_loader:
+                import pdb
+                pdb.set_trace()
                 # Move the tensors to the device
                 camera_per_point.to(self.device)
                 gt = {}
@@ -57,23 +66,52 @@ class ANCSHTrainer:
 
                 loss = torch.tensor(0.0, device=self.device)
                 loss_weight = self.cfg.network.loss_weight
-                # todo: add loss weights to the config
+                # use different loss weight to calculate the final loss
                 for k, v in loss_dict:
                     if k not in loss_weight:
                         raise ValueError(f"No loss weight for {k}")
                     loss += loss_weight[k] * v
 
+                # Used to calcuate the avg loss  
+                if epoch_loss == None:
+                    epoch_loss = loss_dict
+                    epoch_loss["total_loss"] = loss
+                else:
+                    for k, v in loss_dict:
+                        epoch_loss[k] += v
+                    epoch_loss["total_loss"] += loss
+                step_num += 1
+
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
             self.scheduler.step()
+            # Add the loss values into the tensorboard
+            for k,v  in epoch_loss:
+                self.writer.add_scalar(f"loss/{k}", v/step_num, epoch)
+            
+            if epoch % self.cfg.model_frequncy == 0 or epoch == self.max_epochs - 1:
+                # Save the model 
+                existDir(f"{self.cfg.paths.project_paths}")
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                }, f"{self.cfg.paths.project_paths}/model_{epoch}.pth")
 
-    def test(self):
+
+    def test(self, inference_model):
         test_loader = torch.utils.data.DataLoader(
             ANCSHDataset(
                 self.data_path["test"], batch_size=16, shuffle=False, num_workers=4
             )
         )
+        # Load the model
+        print(f"Load model from {inference_model}")
+        checkpoint = torch.load(inference_model, map_location=self.device)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.model.to(self.device)
+
         self.model.eval()
         with torch.no_grad():
             for camera_per_point, gt_dict in test_loader:
@@ -82,7 +120,31 @@ class ANCSHTrainer:
                 gt = {}
                 for k, v in gt_dict:
                     gt[k] = v.to(self.device)
-                # Get the loss
+                    
                 pred = self.model(camera_per_point)
                 # todo: Save the results
-                pass
+                self.save_results(pred, camera_per_point, gt)
+    
+    def save_results(self, pred, camera_per_point, gt):
+        # Save the results and gt into hdf5 for further optimization
+        batch_size = pred["seg_per_point"].shape[0]
+        for b in batch_size:
+            f = h5py.File(f"{self.cfg.paths.test.output_dir}/{gt['filename'][b]}.h5", 'w')
+            f.attrs["network_type"] = self.network_type
+            f.attrs["filename"] = gt["filename"][b]
+            f.create_dataset("camera_per_point", data=camera_per_point[b])
+            for k, v in pred:
+                # Save the pred
+                f.create_dataset(f"pred_{k}", v[b])
+                # Save the gt
+                f.create_dataset(f"gt_{k}", gt[k][b])
+            
+    def resume_train(self, model):
+        print(f"Load model from {model}")
+        # Load the model
+        checkpoint = torch.load(model, map_location=self.device)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.model.to(self.device)
+
+        self.train()

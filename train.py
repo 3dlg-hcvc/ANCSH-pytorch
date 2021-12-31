@@ -20,10 +20,10 @@ def main(cfg):
         network_type=network_type,
         num_parts=cfg.network.num_parts,
     )
-    # if not cfg.test:
-    #     trainer.train()
-    # else:
-    #     trainer.test()
+    if not cfg.test:
+        trainer.train()
+    else:
+        trainer.test(inference_model=cfg.inference_model)
 
 
 if __name__ == "__main__":
