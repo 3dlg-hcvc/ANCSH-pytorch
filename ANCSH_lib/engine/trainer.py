@@ -44,7 +44,8 @@ class ANCSHTrainer:
     def train(self):
         self.model.train()
         for epoch in range(self.max_epochs):
-            avg_loss = 0.0
+            epoch_loss = None
+            step_num = 0
             for camera_per_point, gt_dict in self.train_loader:
                 # Move the tensors to the device
                 camera_per_point.to(self.device)
@@ -57,16 +58,29 @@ class ANCSHTrainer:
 
                 loss = torch.tensor(0.0, device=self.device)
                 loss_weight = self.cfg.network.loss_weight
-                # todo: add loss weights to the config
+                # use different loss weight to calculate the final loss
                 for k, v in loss_dict:
                     if k not in loss_weight:
                         raise ValueError(f"No loss weight for {k}")
                     loss += loss_weight[k] * v
 
+                # Used to calcuate the avg loss  
+                if epoch_loss == None:
+                    epoch_loss = loss_dict
+                    epoch_loss["total_loss"] = loss
+                else:
+                    for k, v in loss_dict:
+                        epoch_loss[k] += v
+                    epoch_loss["total_loss"] += loss
+                step_num += 1
+
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
             self.scheduler.step()
+            # Add the loss values into the tensorboard
+            for k,v  in epoch_loss:
+                self.writer.add_scalar(f"loss/{k}", v/step_num)
 
     def test(self):
         test_loader = torch.utils.data.DataLoader(
