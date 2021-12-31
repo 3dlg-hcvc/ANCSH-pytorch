@@ -15,60 +15,60 @@ class ANCSH(nn.Module):
 
         if self.network_type == "ancsh":
             # segmentation branch
-            self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding="valid")
+            self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding=0)
             # NPCS branch
             self.npcs_layer = nn.Sequential(
-                nn.Conv1d(128, 128, kernel_size=1, padding="valid"),
-                nn.Conv1d(128, 3 * num_parts, kernel_size=1, padding="valid"),
+                nn.Conv1d(128, 128, kernel_size=1, padding=0),
+                nn.Conv1d(128, 3 * num_parts, kernel_size=1, padding=0),
             )
             # NAOCS scale and translation
             self.scale_layer = nn.Conv1d(
-                128, 1 * num_parts, kernel_size=1, padding="valid"
+                128, 1 * num_parts, kernel_size=1, padding=0
             )
-            self.trans_layer = nn.Conv2d(
-                128, 3 * num_parts, kernel_size=1, padding="valid"
+            self.trans_layer = nn.Conv1d(
+                128, 3 * num_parts, kernel_size=1, padding=0
             )
             # Joint parameters
             self.joint_feature_layer = nn.Sequential(
-                nn.Conv1d(128, 128, kernel_size=1, padding="valid", bias=False),
+                nn.Conv1d(128, 128, kernel_size=1, padding=0, bias=False),
                 nn.BatchNorm1d(128),
                 nn.ReLU(True),
                 nn.Dropout(0.5),
-                nn.Conv1d(128, 128, kernel_size=1, padding="valid", bias=False),
+                nn.Conv1d(128, 128, kernel_size=1, padding=0, bias=False),
                 nn.BatchNorm1d(128),
                 nn.ReLU(True),
                 nn.Dropout(0.5),
             )
             # Joint UNitVec, heatmap, joint_cls
-            self.axis_layer = nn.Conv1d(128, 3, kernel_size=1, padding="valid")
-            self.unitvec_layer = nn.Conv1d(128, 3, kernel_size=1, padding="valid")
-            self.heatmap_layer = nn.Conv1d(128, 1, kernel_size=1, padding="valid")
+            self.axis_layer = nn.Conv1d(128, 3, kernel_size=1, padding=0)
+            self.unitvec_layer = nn.Conv1d(128, 3, kernel_size=1, padding=0)
+            self.heatmap_layer = nn.Conv1d(128, 1, kernel_size=1, padding=0)
             self.joint_cls_layer = nn.Conv1d(
-                128, num_parts, kernel_size=1, padding="valid"
+                128, num_parts, kernel_size=1, padding=0
             )
         elif self.network_type == "npcs":
             # segmentation branch
-            self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding="valid")
+            self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding=0)
             # NPCS branch
             self.npcs_layer = nn.Conv1d(
-                128, 3 * num_parts, kernel_size=1, padding="valid"
+                128, 3 * num_parts, kernel_size=1, padding=0
             )
         else:
             raise ValueError("Not Implemented for the network type")
 
     def forward(self, input):
         features = self.backbone(input)
-        pred_seg_per_point = self.seg_layer(features)
-        pred_npcs_per_point = self.npcs_layer(features)
+        pred_seg_per_point = self.seg_layer(features).transpose(1, 2)
+        pred_npcs_per_point = self.npcs_layer(features).transpose(1, 2)
         if self.network_type == "ancsh":
-            pred_scale_per_point = self.scale_layer(features)
-            pred_trans_per_point = self.trans_layer(features)
+            pred_scale_per_point = self.scale_layer(features).transpose(1, 2)
+            pred_trans_per_point = self.trans_layer(features).transpose(1, 2)
 
             joint_features = self.joint_feature_layer(features)
-            pred_axis_per_point = self.axis_layer(joint_features)
-            pred_unitvec_per_point = self.unitvec_layer(joint_features)
-            pred_heatmap_per_point = self.heatmap_layer(joint_features)
-            pred_joint_cls_per_point = self.joint_cls_layer(joint_features)
+            pred_axis_per_point = self.axis_layer(joint_features).transpose(1, 2)
+            pred_unitvec_per_point = self.unitvec_layer(joint_features).transpose(1, 2)
+            pred_heatmap_per_point = self.heatmap_layer(joint_features).transpose(1, 2)
+            pred_joint_cls_per_point = self.joint_cls_layer(joint_features).transpose(1, 2)
 
         # Process the predicted things
         pred_seg_per_point = F.softmax(pred_seg_per_point, dim=2)
