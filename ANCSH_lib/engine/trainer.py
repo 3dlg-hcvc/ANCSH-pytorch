@@ -122,22 +122,22 @@ class ANCSHTrainer:
                     gt[k] = v.to(self.device)
                     
                 pred = self.model(camera_per_point)
-                # todo: Save the results
                 self.save_results(pred, camera_per_point, gt)
     
     def save_results(self, pred, camera_per_point, gt):
         # Save the results and gt into hdf5 for further optimization
         batch_size = pred["seg_per_point"].shape[0]
+        f = h5py.File(f"{self.cfg.paths.test.output_dir}/pred_gt.h5", 'w')
+        f.attrs["network_type"] = self.network_type
         for b in batch_size:
-            f = h5py.File(f"{self.cfg.paths.test.output_dir}/{gt['filename'][b]}.h5", 'w')
-            f.attrs["network_type"] = self.network_type
-            f.attrs["filename"] = gt["filename"][b]
-            f.create_dataset("camera_per_point", data=camera_per_point[b])
+            group = f.create_group(f"{gt['filename'][b]}")
+            group.attrs["filename"] = gt["filename"][b]
+            group.create_dataset("camera_per_point", data=camera_per_point[b])
             for k, v in pred:
                 # Save the pred
-                f.create_dataset(f"pred_{k}", v[b])
+                group.create_dataset(f"pred_{k}", v[b])
                 # Save the gt
-                f.create_dataset(f"gt_{k}", gt[k][b])
+                group.create_dataset(f"gt_{k}", gt[k][b])
             
     def resume_train(self, model):
         print(f"Load model from {model}")
