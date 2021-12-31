@@ -23,7 +23,7 @@ def main(cfg):
     # if not cfg.test:
     #     trainer.train()
     # else:
-    #     trainer.test()
+    #     trainer.test(inference_model=cfg.inference_model)
 
 
 if __name__ == "__main__":

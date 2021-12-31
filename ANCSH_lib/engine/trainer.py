@@ -97,17 +97,18 @@ class ANCSHTrainer:
                 }, f"{self.cfg.paths.project_paths}/model_{epoch}.pth")
 
 
-    def test(self):
+    def test(self, inference_model):
         test_loader = torch.utils.data.DataLoader(
             ANCSHDataset(
                 self.data_path["test"], batch_size=16, shuffle=False, num_workers=4
             )
         )
-        self.model.eval()
         # Load the model
-        checkpoint = torch.load(self.cfg.inference_model)
+        checkpoint = torch.load(inference_model, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.model.to(self.device)
 
+        self.model.eval()
         with torch.no_grad():
             for camera_per_point, gt_dict in test_loader:
                 # Move the tensors to the device
@@ -119,3 +120,12 @@ class ANCSHTrainer:
                 pred = self.model(camera_per_point)
                 # todo: Save the results
                 pass
+
+    def resume_train(self, model):
+        # Load the model
+        checkpoint = torch.load(model, map_location=self.device)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.model.to(self.device)
+
+        self.train()
