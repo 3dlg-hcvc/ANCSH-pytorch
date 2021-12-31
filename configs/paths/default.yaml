@@ -11,6 +11,7 @@ preprocess:
   stage1:
     input: paths # overwrite based on dataset selection at runtime
     tmp_output:
+      input_files: "input_files.csv"
       rest_state_data: "rest_state.json"
       rest_state_mesh: "rest_state.ply"
       pcd_camera: "pcd_camera_%05d.ply"

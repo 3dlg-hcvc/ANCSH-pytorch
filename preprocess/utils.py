@@ -114,10 +114,10 @@ class URDFReader:
         assert self.urdf_data, "URDF data is empty!"
 
         link_infos = []
-        fk_link = self.urdf_data.link_fk()
-        part_idx = 0
+        link_idx = 0
         link_meshes = []
-        for link, link_abs_pose in fk_link.items():
+        for link in self.urdf_data.links:
+            fk_link, link_abs_pose = list(self.urdf_data.link_fk(links=[link]).items())[0]
             link_info = {'name': link.name}
             fk_visual = self.urdf_data.visual_trimesh_fk(links=[link])
             is_virtual = not bool(fk_visual)
@@ -126,30 +126,35 @@ class URDFReader:
             if not is_virtual:
                 link_mesh = trimesh.base.Trimesh()
                 for mesh, mesh_abs_pose in fk_visual.items():
+                    mesh.apply_transform(mesh_abs_pose)
                     link_mesh += mesh
                 # part mesh visualization
-                color = rgba_by_index(part_idx)
+                color = rgba_by_index(link_idx)
                 color[-1] = 0.8
                 link_mesh.visual.vertex_colors = color
                 if self.debug:
                     link_mesh.show()
-                link_info['part_index'] = part_idx
+                link_info['link_index'] = link_idx
                 link_meshes.append(link_mesh)
-                part_idx += 1
+                link_idx += 1
             else:
-                link_info['part_index'] = -1
+                link_info['link_index'] = -1
             link_infos.append(link_info)
 
         joint_infos = []
-        for joint in self.urdf_data.joints:
-            joint_info = {
-                'name': joint.name,
-                'type': joint.joint_type,
-                'parent': joint.parent,
-                'child': joint.child,
-                'axis': joint.axis.tolist(),
-                'pose2link': joint.origin.flatten(order='F').tolist()
-            }
+        for link_info in link_infos:
+            joint_info = {}
+            for joint in self.urdf_data.joints:
+                if joint.child == link_info['name']:
+                    joint_info = {
+                        'name': joint.name,
+                        'type': joint.joint_type,
+                        'parent': joint.parent,
+                        'child': joint.child,
+                        'axis': joint.axis.tolist(),
+                        'pose2link': joint.origin.flatten(order='F').tolist()
+                    }
+                    break
             joint_infos.append(joint_info)
         return link_infos, joint_infos, link_meshes
 
@@ -161,7 +166,7 @@ class URDFReader:
         object_mesh = trimesh.base.Trimesh()
         for link_info in link_infos:
             if not link_info['virtual']:
-                part_mesh = link_meshes[link_info['part_index']]
+                part_mesh = link_meshes[link_info['link_index']]
                 object_mesh += part_mesh
                 part_mesh_filename = f'{link_info["name"]}_{rest_state_mesh_filename}'
                 part_mesh.export(os.path.join(result_data_path, part_mesh_filename))
