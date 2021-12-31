@@ -5,6 +5,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import os
+import h5py
 
 def existDir(dir):
     if not os.path.exists(dir):
@@ -52,6 +53,8 @@ class ANCSHTrainer:
             epoch_loss = None
             step_num = 0
             for camera_per_point, gt_dict in self.train_loader:
+                import pdb
+                pdb.set_trace()
                 # Move the tensors to the device
                 camera_per_point.to(self.device)
                 gt = {}
@@ -104,6 +107,7 @@ class ANCSHTrainer:
             )
         )
         # Load the model
+        print(f"Load model from {inference_model}")
         checkpoint = torch.load(inference_model, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
@@ -119,9 +123,24 @@ class ANCSHTrainer:
                     
                 pred = self.model(camera_per_point)
                 # todo: Save the results
-                pass
-
+                self.save_results(pred, camera_per_point, gt)
+    
+    def save_results(self, pred, camera_per_point, gt):
+        # Save the results and gt into hdf5 for further optimization
+        batch_size = pred["seg_per_point"].shape[0]
+        for b in batch_size:
+            f = h5py.File(f"{self.cfg.paths.test.output_dir}/{gt['filename'][b]}.h5", 'w')
+            f.attrs["network_type"] = self.network_type
+            f.attrs["filename"] = gt["filename"][b]
+            f.create_dataset("camera_per_point", data=camera_per_point[b])
+            for k, v in pred:
+                # Save the pred
+                f.create_dataset(f"pred_{k}", v[b])
+                # Save the gt
+                f.create_dataset(f"gt_{k}", gt[k][b])
+            
     def resume_train(self, model):
+        print(f"Load model from {model}")
         # Load the model
         checkpoint = torch.load(model, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
