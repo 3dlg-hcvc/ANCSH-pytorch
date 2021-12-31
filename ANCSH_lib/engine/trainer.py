@@ -97,7 +97,7 @@ class ANCSHTrainer:
                     'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
                     'optimizer_state_dict': self.optimizer.state_dict(),
-                }, f"{self.cfg.paths.project_paths}/model_{epoch}.pth")
+                }, f"{self.cfg.paths.train.output_dir}/model_{epoch}.pth")
 
 
     def test(self, inference_model):
