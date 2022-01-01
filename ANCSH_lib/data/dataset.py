@@ -11,6 +11,6 @@ class ANCSHDataset(Dataset):
         return self.x.shape[0]
 
     def __getitem__(self, index):
-        camera_per_point = self.x[index]
+        camcs_per_point = self.x[index]
         gt_dict = {"filename": "TEST", "value": torch.rand(2)}
-        return (camera_per_point, gt_dict)
+        return (camcs_per_point, gt_dict, joint_type)

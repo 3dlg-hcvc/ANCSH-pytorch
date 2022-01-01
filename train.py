@@ -3,9 +3,6 @@ from time import time
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-import argparse
-
-
 @hydra.main(config_path="configs", config_name="network")
 def main(cfg):
     train_path = cfg.paths.preprocess.output.train
