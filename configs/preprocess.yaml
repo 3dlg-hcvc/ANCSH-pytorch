@@ -4,7 +4,7 @@ debug: true
 
 defaults:
   - dataset: sapien
-  - paths: default
+  - paths: ???
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
 settings:
