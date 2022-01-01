@@ -30,6 +30,11 @@ pip install h5py
 # Train the two models for SAPIEN drawer dataset
 python train.py network=ancsh_sapien test=False paths=shawn_lab
 python train.py network=npcs_sapien test=False paths=shawn_lab
+# Inference on the trained models
+python train.py network=ancsh_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
+python train.py network=npcs_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
+# Use kinematic constrained optimization to infer the pred part pose 
+python optimize.py 
 ```
 
 

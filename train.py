@@ -13,9 +13,6 @@ def main(cfg):
     data_path = {"train": train_path, "test": test_path}
 
     network_type = cfg.network.network_type
-    
-    import pdb
-    pdb.set_trace()
 
     trainer = ANCSHTrainer(
         cfg=cfg,

@@ -109,7 +109,7 @@ class ANCSH(nn.Module):
 
         return pred
 
-    def losses(self, pred, gt):
+    def losses(self, pred, gt, joint_type):
         # The returned loss is a value
         num_parts = pred["seg_per_point"].shape[2]
         # Convert the gt['seg_per_point'] into gt_seg_onehot B*N*K
@@ -133,15 +133,25 @@ class ANCSH(nn.Module):
             )
 
             # Get the useful joint mask, gt['joint_cls_per_point'] == 0 means that that point doesn't have a corresponding joint
-            # B*N
+            # B*N 
             gt_joint_mask = (gt["joint_cls_per_point"] > 0).float()
-            # pred['heatmap_per_point']: B*N*1, gt['heatmap_per_point']: B*N, gt_joint_mask: B*N
+            # Get the heatmap and unitvec map, the loss should only be calculated for revolute joint
+            gt_revolute_mask = None
+            revlote_index = torch.where(joint_type == 1)[0]
+            assert joint_type[0] == -1
+            for i in revlote_index:
+                if gt_revolute_mask == None:
+                    gt_revolute_mask = (gt["joint_cls_per_point"] == i)
+                else:
+                    gt_revolute_mask = torch.logical_or(gt_revolute_mask, (gt["joint_cls_per_point"] == i))
+            gt_revolute_mask = gt_revolute_mask.float()
+            # pred['heatmap_per_point']: B*N*1, gt['heatmap_per_point']: B*N, gt_revolute_mask: B*N
             heatmap_loss = loss.compute_vect_loss(
-                pred["heatmap_per_point"], gt["heatmap_per_point"], mask=gt_joint_mask
+                pred["heatmap_per_point"], gt["heatmap_per_point"], mask=gt_revolute_mask
             )
-            # pred['unitvec_per_point']: B*N*3, gt['unitvec_per_point']: B*N*3, gt_joint_mask: B*N
+            # pred['unitvec_per_point']: B*N*3, gt['unitvec_per_point']: B*N*3, gt_revolute_mask: B*N
             unitvec_loss = loss.compute_vect_loss(
-                pred["unitvec_per_point"], gt["unitvec_per_point"], mask=gt_joint_mask
+                pred["unitvec_per_point"], gt["unitvec_per_point"], mask=gt_revolute_mask
             )
             # pred['axis_per_point]: B*N*3, gt['axis_per_point']: B*N*3, gt_joint_mask: B*N
             axis_loss = loss.compute_vect_loss(
