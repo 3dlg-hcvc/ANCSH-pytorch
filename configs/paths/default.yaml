@@ -26,3 +26,5 @@ train:
 test:
   output_dir: "${paths.project_dir}/test_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
     
+optimize:
+  output_dir: "${paths.project_dir}/optimize_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"

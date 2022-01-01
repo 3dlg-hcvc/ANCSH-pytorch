@@ -16,7 +16,7 @@ def ransac(dataset, model_estimator, model_verifier, inlier_th, niter, joint_typ
     best_model = model_estimator(dataset, joint_type, best_inliers)
     return best_model, best_inliers
 
-def joint_transformation_estimator(dataset, joint_type="revolute", best_inliers=None):
+def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
     # dataset: dict, fields include source0, target0, nsource0,
     #     source1, target1, nsource1, joint_direction
     if best_inliers is None:
@@ -214,6 +214,12 @@ def rotate_points_with_rotvec(points, rot_vecs):
 
     return cos_theta * points + sin_theta * np.cross(v, points) + dot * (1 - cos_theta) * v
 
+def rot_diff_degree(rot1, rot2):
+    return rot_diff_rad(rot1, rot2) / np.pi * 180
+
+def rot_diff_rad(rot1, rot2):
+    return np.arccos( ( np.trace(np.matmul(rot1, rot2.T)) - 1 ) / 2 ) % (2*np.pi)
+
 def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold):
     camcs_per_point = ins_ancsh["camcs_per_point"]
     joint_type = ins_ancsh["joint_type"]
@@ -224,6 +230,9 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
     # Get the joint prediction from ANCSH model results
     pred_joint_cls_per_point = ins_ancsh["pred_joint_cls_per_point"]
     pred_axis_per_point = ins_ancsh["pred_axis_per_point"]
+    # Get the gt pose
+    gt_rt = ins_ancsh["gt_rt"]
+    gt_scale = ins_ancsh["gt_scale"]
 
     # Get the point mask
     partIndex = []
@@ -236,6 +245,12 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
     for i in range(1, num_parts):
         jointIndex.append(np.where(pred_joint_cls_per_point == i)[0])
 
+    pred_scale = []
+    pred_rt = []
+    err_scale = []
+    err_translation = []
+    err_rotation = []
+    
     for i in range(1, num_parts):
         # Calculate the part pose for each moving part (from NPCS to camera)
         data = dict()
@@ -260,4 +275,42 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
             niter,
             joint_type[i],
         )
+
+        if i == 1:
+            # Record the pred things and error for base part
+            rdiff = rot_diff_degree(best_model["rotation0"], gt_rt[0][:3, :3])
+            tdiff = np.linalg.norm(best_model["translation0"] - gt_rt[0][:3, 3])
+            sdiff = np.linalg.norm(best_model["scale0"] - gt_scale[0])
+            pred_scale.append(best_model["scale0"])
+            rt = np.zeros((4, 4))
+            rt[:3, :3] = best_model["rotation0"]
+            rt[:3, 3] = best_model["translation0"]
+            rt[3, 3] = 1
+            pred_rt.append(rt)
+            err_rotation.append(rdiff)
+            err_translation.append(tdiff)
+            err_scale.append(sdiff)
+        # Record the pred things and error for moving parts
+        rdiff = rot_diff_degree(best_model["rotation1"], gt_rt[i][:3, :3])
+        tdiff = np.linalg.norm(best_model["translation1"] - gt_rt[i][:3, 3])
+        sdiff = np.linalg.norm(best_model["scale1"] - gt_scale[i])
+        pred_scale.append(best_model["scale1"])
+        rt = np.zeros((4, 4))
+        rt[:3, :3] = best_model["rotation1"]
+        rt[:3, 3] = best_model["translation1"]
+        rt[3, 3] = 1
+        pred_rt.append(rt)
+        err_rotation.append(rdiff)
+        err_translation.append(tdiff)
+        err_scale.append(sdiff)
+
+    return {
+        "pred_scale": pred_scale,
+        "pred_rt": pred_rt,
+        "err_rotation": err_rotation,
+        "err_translation": err_translation,
+        "err_scale": err_scale,
+    }
+    
+
     
