@@ -11,17 +11,34 @@ preprocess:
   stage1:
     input: paths # overwrite based on dataset selection at runtime
     tmp_output:
+      folder_name: "stage1"
       input_files: "input_files.csv"
       rest_state_data: "rest_state.json"
       rest_state_mesh: "rest_state.ply"
       pcd_camera: "pcd_camera_%03d_%03d.ply"
       pcd_world: "pcd_world_%03d_%03d.ply"
       pcd_rest_state: "pcd_rest_state_%03d_%03d.ply"
-      normalize_info: "normalize_info.json"
-      part_order: "part_order.json"
-      joint_params: "joint_params.json"
     output:
       pcd_data: "stage1_pcd.h5"
+
+  stage2:
+    input:
+      split_info: "path"
+      split_seed: 1
+      pcd_data: "${paths.preprocess.stage1.output.pcd_data}"
+    tmp_output:
+      folder_name: "stage2"
+      mesh_info: "mesh_info.json"
+      pcd_camera: "pcd_camera_%03d_%03d.ply"
+      pcd_npcs: "pcd_npcs_%03d_%03d.ply"
+      pcd_naocs: "pcd_naocs_%03d_%03d.ply"
+      pcd_npcs2camera: "pcd_npcs2camera_%03d_%03d.ply"
+    output:
+      split_info: "split_info.csv"
+      train_data: "train.h5"
+      val_data: "val.h5"
+      test_data: "test.h5"
+
 
   output:
     train: "${paths.preprocess.result_dir}/train.h5"

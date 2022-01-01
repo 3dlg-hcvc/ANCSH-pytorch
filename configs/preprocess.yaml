@@ -10,7 +10,11 @@ defaults:
 settings:
   categories: ["drawer"]
   object_ids: ["40453", "46653"]
-  articulation_ids: ["0", "1"]
+  articulation_ids: ["0"]
+  stage1:
+    process: true
+  stage2:
+    process: true
 
 # hydra configuration log output dir
 hydra:

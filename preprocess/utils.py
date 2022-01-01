@@ -44,6 +44,44 @@ def visualize_point_cloud(vertices, mask=None, export=None, show=True, window_na
         pcd.show(caption=window_name)
 
 
+def verify_npcs2camera(npcs_vertices, mask, transformations, scales, export=None, show=True,
+                       window_name='Point Cloud'):
+    part_classes = np.unique(mask)
+    transformed_npcs = np.empty_like(npcs_vertices)
+    for part_class in part_classes:
+        part_npcs = npcs_vertices[mask == part_class]
+        npcs2cam_scale = scales[part_class]
+        part_npcs_scales = part_npcs * npcs2cam_scale
+        npcs2cam_transform = transformations[part_class].reshape((4, 4), order='F')
+        part_npcs_p4 = np.column_stack((part_npcs_scales, np.ones(part_npcs_scales.shape[0])))
+        part_npcs_p4 = part_npcs_p4.transpose()
+        transformed_part = np.dot(npcs2cam_transform, part_npcs_p4)
+        transformed_part = transformed_part.transpose()[:, :3]
+        transformed_npcs[mask == part_class] = transformed_part
+
+    transformed_pcd = trimesh.points.PointCloud(transformed_npcs, colors=rgba_by_index(0))
+    if export:
+        transformed_pcd.export(export)
+    if show:
+        transformed_pcd.show(caption=window_name)
+
+
+def get_mesh_info(mesh_path):
+    mesh = trimesh.load(mesh_path, force='mesh')
+    assert isinstance(mesh, trimesh.base.Trimesh)
+    min_bound = mesh.bounds[0]
+    max_bound = mesh.bounds[1]
+    center = np.mean(mesh.bounds, axis=0)
+    scale = mesh.scale
+    mesh_info = {
+        'min_bound': min_bound,
+        'max_bound': max_bound,
+        'center': center,
+        'scale': scale
+    }
+    return mesh_info
+
+
 class DataLoader:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -60,6 +98,15 @@ class DataLoader:
         render_data_info = self.parse_render_input()
         motion_data_info = self.parse_motion_input()
         self.data_info = render_data_info.merge(motion_data_info, how='inner', on=['objectCat', 'objectId'])
+
+        selected_categories = self.data_info['objectCat'].isin(self.cfg.settings.categories) \
+            if len(self.cfg.settings.categories) > 0 else self.data_info['objectCat']
+        selected_object_ids = self.data_info['objectId'].isin(self.cfg.settings.object_ids) \
+            if len(self.cfg.settings.object_ids) > 0 else self.data_info['objectId']
+        selected_articulation_ids = self.data_info['articulationId'].isin(self.cfg.settings.articulation_ids) \
+            if len(self.cfg.settings.articulation_ids) > 0 else self.data_info['articulationId']
+        self.data_info = self.data_info[selected_categories & selected_object_ids & selected_articulation_ids]
+        self.data_info = self.data_info.reset_index(drop=True)
 
     def parse_render_input(self):
         df_list = []
@@ -143,6 +190,8 @@ class URDFReader:
                 link_mesh = trimesh.base.Trimesh()
                 for mesh, mesh_abs_pose in fk_visual.items():
                     mesh.apply_transform(mesh_abs_pose)
+                    # remove texture visual
+                    mesh.visual = trimesh.visual.create_visual()
                     link_mesh += mesh
                 # part mesh visualization
                 color = rgba_by_index(link_idx)
@@ -150,11 +199,11 @@ class URDFReader:
                 link_mesh.visual.vertex_colors = color
                 if self.debug:
                     link_mesh.show()
-                link_info['link_index'] = link_idx
+                link_info['part_index'] = link_idx
                 link_meshes.append(link_mesh)
                 link_idx += 1
             else:
-                link_info['link_index'] = -1
+                link_info['part_index'] = -1
             link_infos.append(link_info)
 
         joint_infos = []
@@ -182,7 +231,7 @@ class URDFReader:
         object_mesh = trimesh.base.Trimesh()
         for link_info in link_infos:
             if not link_info['virtual']:
-                part_mesh = link_meshes[link_info['link_index']]
+                part_mesh = link_meshes[link_info['part_index']]
                 object_mesh += part_mesh
                 part_mesh_filename = f'{link_info["name"]}_{rest_state_mesh_filename}'
                 part_mesh.export(os.path.join(result_data_path, part_mesh_filename))
