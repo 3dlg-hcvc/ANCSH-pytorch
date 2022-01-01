@@ -1,8 +1,6 @@
 config_logs/
 *_output/
 
-.vscode
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -135,3 +133,10 @@ dmypy.json
 
 # dataset folders
 sapien/
+
+# result folder
+results/
+
+# ide folder
+.vscode
+.idea

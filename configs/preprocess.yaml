@@ -1,10 +1,22 @@
 version: "v1.0"
 
+debug: true
+
 defaults:
+  - dataset: sapien
   - paths: ???
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
+
+settings:
+  categories: ["drawer"]
+  object_ids: ["40453", "46653"]
+  articulation_ids: ["0"]
+  stage1:
+    process: true
+  stage2:
+    process: true
 
 # hydra configuration log output dir
 hydra:
   run:
-    dir: "config_logs/preprocess/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+    dir: "${paths.preprocess.output_dir}/logs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
