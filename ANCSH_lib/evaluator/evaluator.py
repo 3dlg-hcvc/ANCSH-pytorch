@@ -327,5 +327,27 @@ class ANCSHEvaluator:
         mean_iou_cam_3dbbx = np.mean(iou_cam_3dbbx, axis=0)
         print(f"Mean iou for different parts is: {mean_iou_cam_3dbbx}")
 
+        # Print the mean error for joints in the camera coordinate
+        err_joint_axis = [result["err_joint_axis"] for result in self.results]
+        err_joint_line = [result["err_joint_line"] for result in self.results]
+        mean_err_joint_axis = np.mean(err_joint_axis, axis=0)
+        mean_err_joint_line = np.mean(err_joint_line, axis=0)
+        print(f"Mean joint axis error in camera coordinate (degree): {mean_err_joint_axis}")
+        print(f"Mean joint axis line distance in camera coordinate (m): {mean_err_joint_line}")
+
+        f = h5py.File(f"{self.cfg.paths.evaluate.output_dir}/final_results.h5")
+        for k, v in self.f_combined.attrs.items():
+            f.attrs[k] = v
+        f.attrs["err_pose_scale"] = mean_err_pose_scale
+        f.attrs["err_pose_volume"] = mean_err_pose_volume
+        f.attrs["iou_cam_3dbbx"] = mean_iou_cam_3dbbx
+        f.attrs["err_joint_axis"] = mean_err_joint_axis
+        f.attrs["err_joint_line"] = mean_err_joint_line
+
         for i, ins in enumerate(self.instances):
-            pass
+            result = self.results[i]
+            group = f.create_group(ins)
+            for k, v in self.f_combined[ins].items():
+                group.create_dataset(k, data=v, compression="gzip")
+            for k, v in result.items():
+                group.create_dataset(k, data=v, compression="gzip")
