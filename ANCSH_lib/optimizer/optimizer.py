@@ -1,8 +1,7 @@
 import h5py
 import multiprocessing
 
-from numpy import isnat
-from optimize_util import optimize_with_kinematic
+from .optimize_util import optimize_with_kinematic
 
 import numpy as np
 

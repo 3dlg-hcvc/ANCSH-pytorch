@@ -11,17 +11,18 @@ class ANCSHDataset(Dataset):
         return len(self.instances)
 
     def __getitem__(self, index):
-        ins = self.f_data[self.instances[index]]
+        id = self.instances[index]
+        ins = self.f_data[id]
+        import pdb
+        pdb.set_trace()
         # Get the camcs_per_point
         camcs_per_point = ins["camcs_per_point"]
-        # Get the joint type
-        joint_type = ins["joint_type"]
         # Get all other items 
         gt_dict = {}
         for k, v in ins.items():
-            if k == "camcs_per_point" or k == "joint_type":
+            if k == "camcs_per_point":
                 continue
             else:
                 gt_dict[k] = v
         
-        return (camcs_per_point, gt_dict, joint_type)
+        return (camcs_per_point, gt_dict, id)

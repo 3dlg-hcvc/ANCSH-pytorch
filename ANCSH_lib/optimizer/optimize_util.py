@@ -254,7 +254,7 @@ def rot_diff_rad(rot1, rot2):
 
 def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold):
     camcs_per_point = ins_ancsh["camcs_per_point"]
-    joint_type = ins_ancsh["joint_type"]
+    gt_joint_type = ins_ancsh["gt_joint_type"]
     # Get the predicted segmentation and npcs from the NPCS model results
     pred_npcs_per_point = ins_npcs["pred_npcs_per_point"]
     pred_seg_per_point = ins_npcs["pred_seg_per_point"]
@@ -297,7 +297,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         # Get the constrained joint info
         data["joint_direction"] = np.median(pred_axis_per_point[jointIndex[i-1]], axis=0)
 
-        assert joint_type >= 0
+        assert gt_joint_type >= 0
 
         best_model, best_inliers = ransac(
             data,
@@ -305,7 +305,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
             joint_transformation_verifier,
             choose_threshold,
             niter,
-            joint_type[i],
+            gt_joint_type[i],
         )
 
         if i == 1:

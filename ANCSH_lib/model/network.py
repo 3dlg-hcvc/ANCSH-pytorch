@@ -109,7 +109,7 @@ class ANCSH(nn.Module):
 
         return pred
 
-    def losses(self, pred, gt, joint_type):
+    def losses(self, pred, gt):
         # The returned loss is a value
         num_parts = pred["seg_per_point"].shape[2]
         # Convert the gt['seg_per_point'] into gt_seg_onehot B*N*K
@@ -137,8 +137,8 @@ class ANCSH(nn.Module):
             gt_joint_mask = (gt["joint_cls_per_point"] > 0).float()
             # Get the heatmap and unitvec map, the loss should only be calculated for revolute joint
             gt_revolute_mask = None
-            revlote_index = torch.where(joint_type == 1)[0]
-            assert joint_type[0] == -1
+            revlote_index = torch.where(gt["joint_type"] == 1)[0]
+            assert gt["joint_type"][0] == -1
             for i in revlote_index:
                 if gt_revolute_mask == None:
                     gt_revolute_mask = (gt["joint_cls_per_point"] == i)

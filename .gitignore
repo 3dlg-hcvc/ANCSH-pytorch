@@ -1,5 +1,6 @@
 config_logs/
 *_output/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
