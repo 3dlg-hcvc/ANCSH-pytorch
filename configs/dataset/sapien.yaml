@@ -16,6 +16,5 @@ input:
   part_order_file: "part_order.json"
 
 param:
-  joint_association_threshold: 0.2
   width: 512
   height: 512
