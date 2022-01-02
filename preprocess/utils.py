@@ -115,8 +115,6 @@ def visualize_heatmap_unitvec(vertices, heatmap, unitvec, export=None, show=True
     cmap = cm.get_cmap('jet')
     colors = cmap(heatmap / max_val)
     colors[invalid_heatmap_mask] = np.array([0.5, 0.5, 0.5, 0.8])
-    print(vertices.shape)
-    print(unitvec.shape)
     mesh = trimesh.base.Trimesh(vertices, vertex_normals=unitvec, vertex_colors=colors)
     if export:
         mesh.export(export)
