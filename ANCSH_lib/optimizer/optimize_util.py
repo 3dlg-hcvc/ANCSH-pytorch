@@ -53,17 +53,36 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
     R0 = rotate_pts(source0_centered, target0_scaled_centered)
     R1 = rotate_pts(source1_centered, target1_scaled_centered)
 
-    T0 = np.mean(target0_scaled_centered.T - np.matmul(R0, source0_centered.T), 1)
-    T1 = np.mean(target0_scaled_centered.T - np.matmul(R0, source0_centered.T), 1)
+    # T0 = np.mean(target0_scaled_centered.T - np.matmul(R0, source0_centered.T), 1)
+    # T1 = np.mean(target0_scaled_centered.T - np.matmul(R0, source0_centered.T), 1)
 
     rotvec0 = srot.from_dcm(R0).as_rotvec()
     rotvec1 = srot.from_dcm(R1).as_rotvec()
     # print('initialize rotvec0 vs rotvec1: \n', rotvec0, rotvec1)
     if joint_type == 0:
         # 0 represents primatic
+        # res = least_squares(
+        #     objective_eval_t,
+        #     np.hstack((T0, T1)),
+        #     verbose=0,
+        #     ftol=1e-4,
+        #     method="lm",
+        #     args=(
+        #         source0_centered,
+        #         target0_scaled_centered,
+        #         source1_centered,
+        #         target1_scaled_centered,
+        #         joint_points0,
+        #         R0,
+        #         R1,
+        #         1.0,
+        #         1.0,
+        #         False,
+        #     ),
+        # )
         res = least_squares(
             objective_eval_t,
-            np.hstack((T0, T1)),
+            np.hstack((rotvec0, rotvec1)),
             verbose=0,
             ftol=1e-4,
             method="lm",
@@ -73,10 +92,6 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
                 source1_centered,
                 target1_scaled_centered,
                 joint_points0,
-                R0,
-                R1,
-                1.0,
-                1.0,
                 False,
             ),
         )
@@ -147,30 +162,47 @@ def objective_eval_r(params, x0, y0, x1, y1, joints, isweight=True):
         res_joint /= joints.shape[0]
     return np.concatenate((res0, res1, res_joint), 0).ravel()
 
+# The author replies that they don't use this optimization as their final optimization
+# def objective_eval_t(
+#     params, x0, y0, x1, y1, joints, R0, R1, scale0, scale1, isweight=True
+# ):
+#     # params: [0:3] t0, [3:6] t1;
+#     # joints: K * 3
+#     # rotvec0, rotvec1, scale0, scale1 solved from previous steps
+#     R = R0
+#     transvec0 = params[0:3].reshape((1, 3))
+#     transvec1 = params[3:6].reshape((1, 3))
+#     res0 = y0 - scale0 * np.matmul(x0, R0.T) - transvec0
+#     res1 = y1 - scale1 * np.matmul(x1, R1.T) - transvec1
+#     rot_u = np.matmul(joints, R.T)[0]
+#     delta_trans = transvec0 - transvec1
+#     cross_mat = np.array(
+#         [[0, -rot_u[2], rot_u[1]], [rot_u[2], 0, -rot_u[0]], [-rot_u[1], rot_u[0], 0]]
+#     )
+#     res2 = np.matmul(delta_trans, cross_mat.T).reshape(1, 3)
+#     # np.linspace(0, 1, num = np.min((x0.shape[0], x1.shape[0]))+1 )[1:].reshape((-1, 1))
+#     res2 = np.ones((np.min((x0.shape[0], x1.shape[0])), 1)) * res2
+#     if isweight:
+#         res0 /= x0.shape[0]
+#         res1 /= x1.shape[0]
+#         res2 /= res2.shape[0]
+#     return np.concatenate((res0, res1, res2), 0).ravel()
+
 def objective_eval_t(
-    params, x0, y0, x1, y1, joints, R0, R1, scale0, scale1, isweight=True
+    params, x0, y0, x1, y1, joints, isweight=True, joint_type="prismatic"
 ):
-    # params: [0:3] t0, [3:6] t1;
-    # joints: K * 3
-    # rotvec0, rotvec1, scale0, scale1 solved from previous steps
-    R = R0
-    transvec0 = params[0:3].reshape((1, 3))
-    transvec1 = params[3:6].reshape((1, 3))
-    res0 = y0 - scale0 * np.matmul(x0, R0.T) - transvec0
-    res1 = y1 - scale1 * np.matmul(x1, R1.T) - transvec1
-    rot_u = np.matmul(joints, R.T)[0]
-    delta_trans = transvec0 - transvec1
-    cross_mat = np.array(
-        [[0, -rot_u[2], rot_u[1]], [rot_u[2], 0, -rot_u[0]], [-rot_u[1], rot_u[0], 0]]
-    )
-    res2 = np.matmul(delta_trans, cross_mat.T).reshape(1, 3)
-    # np.linspace(0, 1, num = np.min((x0.shape[0], x1.shape[0]))+1 )[1:].reshape((-1, 1))
-    res2 = np.ones((np.min((x0.shape[0], x1.shape[0])), 1)) * res2
+    # params: [:3] R0, [3:] R1
+    # x0: N x 3, y0: N x 3, x1: M x 3, y1: M x 3, R0: 1 x 3, R1: 1 x 3, joints: K x 3
+    rotvec0 = params[:3].reshape((1, 3))
+    rotvec1 = params[3:].reshape((1, 3))
+    res0 = y0 - rotate_points_with_rotvec(x0, rotvec0)
+    res1 = y1 - rotate_points_with_rotvec(x1, rotvec1)
+    res_R = rotvec0 - rotvec1
     if isweight:
         res0 /= x0.shape[0]
         res1 /= x1.shape[0]
-        res2 /= res2.shape[0]
-    return np.concatenate((res0, res1, res2), 0).ravel()
+    return np.concatenate((res0, res1, res_R), 0).ravel()
+
 
 def scale_pts(source, target):
     '''
