@@ -34,7 +34,8 @@ class ProcStage1:
             motion_file_path = os.path.join(self.data_loader.motion_dir, motion_data['objectCat'],
                                             motion_data['objectId'], motion_data['motion'])
             assert io.file_exist(motion_file_path), f'Can not found Motion file {motion_file_path}!'
-            if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN:
+            if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN or \
+                    DatasetName[self.cfg.dataset.name] == DatasetName.SHAPE2MOTION:
                 urdf_reader = URDFReader(motion_file_path)
                 tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, motion_data['objectCat'],
                                             motion_data['objectId'], self.tmp_output.folder_name)
@@ -44,9 +45,10 @@ class ProcStage1:
                     rest_state_mesh_filename=self.tmp_output.rest_state_mesh
                 )
 
-    def get_metadata(self, metadata_path, frame_index):
+    def get_metadata(self, metadata_path, frame_index, num_parts):
         metadata = {}
-        if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN:
+        if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN or \
+                DatasetName[self.cfg.dataset.name] == DatasetName.SHAPE2MOTION:
             with open(metadata_path, "r") as meta_file:
                 metadata_all = yaml.load(meta_file, Loader=yaml.Loader)
             frame_metadata = metadata_all[f'frame_{frame_index}']
@@ -56,6 +58,8 @@ class ProcStage1:
                 'linkAbsPoses': []
             }
             num_links = len(frame_metadata['obj'])
+            if num_links < num_parts:
+                metadata['linkAbsPoses'].append(np.eye(4))
             for link_idx in range(num_links):
                 position = frame_metadata['obj'][link_idx][4]
                 # x,y,z,w
@@ -96,8 +100,10 @@ class ProcStage1:
             depth_data = np.array(h5py.File(depth_frame_path, "r")["data"])
             # uint8 mask, invalid value is 255
             mask_frame = np.asarray(Image.open(mask_frame_path))
+            rest_data_data = io.read_json(rest_state_data_path)
+            num_parts = len([link for link in rest_data_data['links'] if link if not link['virtual']])
             assert depth_data.size == mask_frame.size
-            metadata = self.get_metadata(metadata_path, frame_index)
+            metadata = self.get_metadata(metadata_path, frame_index, num_parts)
             x_range = np.linspace(-1, 1, self.width)
             y_range = np.linspace(1, -1, self.height)
             x, y = np.meshgrid(x_range, y_range)
@@ -123,7 +129,6 @@ class ProcStage1:
             points_world = np.dot(np.linalg.inv(view_mat), points_camera)
 
             # transform links to rest state
-            rest_data_data = io.read_json(rest_state_data_path)
             points_rest_state = np.empty_like(points_world)
             parts_camera2rest_state = []
             for link_idx, link in enumerate(rest_data_data['links']):
@@ -245,38 +250,31 @@ class ProcStage2:
         self.process_each(test,
                           os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data))
 
-    def get_joint_params(self, vertices, joints, vertices_class, part_class, num_parts):
-        heatmap2joints = -np.ones((vertices.shape[0], num_parts))
-        unitvec2joints = np.zeros((vertices.shape[0], num_parts, 3))
+    def get_joint_params(self, vertices, joint, selected_vertices):
+        heatmap = -np.ones((vertices.shape[0]))
+        unitvec = np.zeros((vertices.shape[0], 3))
+        joint_pos = joint['abs_position']
+        joint_axis = joint['axis']
+        joint_axis = joint_axis / np.linalg.norm(joint_axis)
+        joint_axis = joint_axis.reshape((3, 1))
+        if joint['type'] == JointType.revolute.value:
+            vec1 = vertices - joint_pos
+            # project to joint axis
+            proj_len = np.dot(vec1, joint_axis)
+            np.clip(proj_len, a_min=self.epsilon, a_max=None, out=proj_len)
+            proj_vec = proj_len * joint_axis.transpose()
+            orthogonal_vec = - vec1 + proj_vec
+            tmp_heatmap = np.linalg.norm(orthogonal_vec, axis=1).reshape(-1, 1)
+            tmp_unitvec = orthogonal_vec / tmp_heatmap
+            heatmap[selected_vertices] = tmp_heatmap[selected_vertices].reshape(-1)
+            unitvec[selected_vertices] = tmp_unitvec[selected_vertices]
+        elif joint['type'] == JointType.prismatic.value:
+            heatmap[selected_vertices] = 0
+            unitvec[selected_vertices] = joint_axis.transpose()
+        else:
+            log.error(f'Invalid joint type {joint["axis"]}')
 
-        for joint in joints:
-            joint_class = joint['class']
-            joint_pos = joint['abs_position']
-            joint_axis = joint['axis']
-            joint_axis = joint_axis / np.linalg.norm(joint_axis)
-            joint_axis = joint_axis.reshape((3, 1))
-            if joint['type'] == JointType.revolute.value:
-                vec1 = vertices - joint_pos
-                # project to joint axis
-                proj_len = np.dot(vec1, joint_axis)
-                np.clip(proj_len, a_min=self.epsilon, a_max=None, out=proj_len)
-                proj_vec = proj_len * joint_axis.transpose()
-                orthogonal_vec = - vec1 + proj_vec
-                heatmap = np.linalg.norm(orthogonal_vec, axis=1).reshape(-1, 1)
-                unitvec = orthogonal_vec / heatmap
-                heatmap2joints[vertices_class == part_class, joint_class] = heatmap.transpose()
-                unitvec2joints[vertices_class == part_class, joint_class] = unitvec
-            elif joint['type'] == JointType.prismatic.value:
-                if part_class == joint_class:
-                    heatmap2joints[vertices_class == part_class, joint_class] = 0
-                    unitvec2joints[vertices_class == part_class, joint_class] = joint_axis.transpose()
-            else:
-                log.error(f'Invalid joint type {joint["axis"]}')
-
-        heatmap2joints = np.where(heatmap2joints >= 0, heatmap2joints, np.inf)
-        best_joint_index = heatmap2joints.argmin(axis=1)
-        heatmap = heatmap2joints[np.arange(len(heatmap2joints)), best_joint_index]
-        unitvec = unitvec2joints[np.arange(len(heatmap2joints)), best_joint_index]
+        heatmap = np.where(heatmap >= 0, heatmap, np.inf)
         return heatmap, unitvec
 
     def process_each(self, data_info, output_path):
@@ -291,14 +289,21 @@ class ProcStage2:
             object_mesh_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_mesh)
             object_dict = utils.get_mesh_info(object_mesh_path)
             part_dict = {}
-            part_order = self.part_orders[row['objectCat']][row['objectId']]
+            part_order = None
+            if self.part_orders:
+                part_order = self.part_orders[row['objectCat']][row['objectId']]
+            part_index = 0
             for link_index, link in enumerate(rest_state_data['links']):
                 if link['virtual']:
                     continue
                 part_mesh_path = os.path.join(stage1_tmp_data_dir,
                                               f'{link["name"]}_{self.stag1_tmp_output.rest_state_mesh}')
                 part_dict[link_index] = utils.get_mesh_info(part_mesh_path)
-                part_dict[link_index]['part_class'] = part_order.index(link['part_index'])
+                if part_order:
+                    part_dict[link_index]['part_class'] = part_order.index(link['part_index'])
+                else:
+                    part_dict[link_index]['part_class'] = part_index
+                    part_index += 1
             if row['objectCat'] in object_infos:
                 object_infos[row['objectCat']][row['objectId']] = {'object': object_dict, 'part': part_dict}
             else:
@@ -339,7 +344,6 @@ class ProcStage2:
             npcs = np.empty_like(points_rest_state)
             parts_npcs2cam_transformation = np.empty_like(parts_camera2rest_state)
             parts_npcs2cam_scale = np.empty(num_parts)
-
             for link_index, link in enumerate(rest_state_data['links']):
                 if link['virtual']:
                     continue
@@ -364,6 +368,7 @@ class ProcStage2:
             # process joints related ground truth
             link_names = [link['name'] for link in rest_state_data['links']]
             # transform joints to naocs space
+            naocs_arrows = []
             naocs_joints = rest_state_data['joints']
             for i, joint in enumerate(rest_state_data['joints']):
                 if not joint:
@@ -390,31 +395,30 @@ class ProcStage2:
                 joint_type = JointType[joint['type']].value
                 naocs_joints[i]['type'] = joint_type
 
-                if self.show:
+                if self.debug:
                     naocs_arrow = utils.draw_arrow(naocs_joint_pos, joint_axis,
                                                    color=utils.rgba_by_index(joint_class))
-                    pcd = trimesh.points.PointCloud(vertices=naocs[points_class == child_link_class])
-                    scene = trimesh.scene.Scene([pcd, naocs_arrow])
-                    scene.show()
+                    naocs_arrows.append(naocs_arrow)
 
-            tmp_heatmap = np.empty((num_parts, naocs.shape[0]))
-            tmp_unitvec = np.empty((num_parts, naocs.shape[0], 3))
-            for i, link in enumerate(rest_state_data['links']):
-                if link['virtual']:
-                    continue
-                # find parent joints
-                parent_joints = [joint for joint in naocs_joints
-                                 if joint if joint['type'] >= 0 if joint['child'] == link['name']]
-                # find child joints
-                child_joints = [joint for joint in naocs_joints
-                                if joint if joint['type'] >= 0 if joint['parent'] == link['name']]
-                connected_joints = parent_joints + child_joints
-                part_class = part_info[i]['part_class']
-                part_heatmap, part_unitvec = self.get_joint_params(naocs, connected_joints, points_class, part_class,
-                                                                   num_parts)
+            valid_joints = [joint for joint in naocs_joints if joint if joint['type'] >= 0]
+            num_valid_joints = len(valid_joints)
+            tmp_heatmap = np.empty((num_valid_joints, naocs.shape[0]))
+            tmp_unitvec = np.empty((num_valid_joints, naocs.shape[0], 3))
+            for i, joint in enumerate(valid_joints):
+                joint_class = joint['class']
+                parent_links = [i for i, link in enumerate(rest_state_data['links'])
+                                if link if not link['virtual'] if joint['parent'] == link['name']]
+                child_links = [i for i, link in enumerate(rest_state_data['links'])
+                               if link if not link['virtual'] if joint['child'] == link['name']]
+                connected_links = parent_links + child_links
+                part_classes = [part_info[link_index]['part_class'] for link_index in connected_links]
+                if joint['type'] == JointType.prismatic.value:
+                    part_classes = [part_class for part_class in part_classes if part_class == joint_class]
+                selected_vertex_indices = np.isin(points_class, part_classes)
+                part_heatmap, part_unitvec = self.get_joint_params(naocs, joint, selected_vertex_indices)
 
-                tmp_heatmap[part_class] = part_heatmap
-                tmp_unitvec[part_class] = part_unitvec
+                tmp_heatmap[joint_class-1] = part_heatmap
+                tmp_unitvec[joint_class-1] = part_unitvec
 
             joints_association = tmp_heatmap.argmin(axis=0)
             points_heatmap = tmp_heatmap[joints_association, np.arange(naocs.shape[0])]
@@ -426,10 +430,10 @@ class ProcStage2:
             # points with no joint association has value 0
             joints_association += 1
             joints_axis = np.zeros((naocs.shape[0], 3))
-            joint_types = np.zeros(num_parts)
+            joint_types = -np.ones(num_parts)
             for joint in naocs_joints:
                 if joint:
-                    joints_axis[joints_association == joint['class']+1] = joint['axis']
+                    joints_axis[joints_association == joint['class']] = joint['axis']
                     joint_types[joint['class']] = joint['type']
 
             instance_name = f'{row["objectCat"]}_{row["objectId"]}_{row["articulationId"]}_{row["frameId"]}'
@@ -455,6 +459,9 @@ class ProcStage2:
                                          export=os.path.join(tmp_data_dir, self.tmp_output.pcd_npcs2camera %
                                                              (int(row["articulationId"]), int(row["frameId"]))),
                                          window_name=window_name_prefix + 'NPCS to Camera', show=self.show)
+                naocs_arrows_mesh = trimesh.util.concatenate(naocs_arrows)
+                naocs_arrows_mesh.export(os.path.join(tmp_data_dir, self.tmp_output.arrows_naocs %
+                                                      (int(row["articulationId"]), int(row["frameId"]))))
                 utils.visualize_heatmap_unitvec(naocs, points_heatmap_result, points_unitvec,
                                                 export=os.path.join(tmp_data_dir, self.tmp_output.pcd_heatmap_unitvec %
                                                                     (int(row["articulationId"]), int(row["frameId"]))),
@@ -462,7 +469,8 @@ class ProcStage2:
                 utils.visualize_joints_axis(naocs, joints_association, joints_axis,
                                             export=os.path.join(tmp_data_dir, self.tmp_output.pcd_joints_axis %
                                                                 (int(row["articulationId"]), int(row["frameId"]))),
-                                            window_name=window_name_prefix + 'Joints axis and association', show=self.show)
+                                            window_name=window_name_prefix + 'Joints axis and association',
+                                            show=self.show)
 
             h5frame = h5file.require_group(instance_name)
             h5frame.attrs['objectCat'] = row["objectCat"]

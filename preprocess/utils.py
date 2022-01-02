@@ -22,7 +22,8 @@ JointLimit.velocity = 1000
 
 class DatasetName(Enum):
     SAPIEN = 0
-    MULTISCAN = 1
+    SHAPE2MOTION = 1
+    MULTISCAN = 2
 
 
 class JointType(Enum):
@@ -130,7 +131,7 @@ def visualize_joints_axis(vertices, mask, joint_axis, export=None, show=True, wi
         if i == 0:
             rgba = [0.5, 0.5, 0.5, 0.8]
         else:
-            rgba = rgba_by_index(i - 1)
+            rgba = rgba_by_index(i)
         colors[mask == val] = rgba
     mesh = trimesh.base.Trimesh(vertices, vertex_normals=joint_axis, vertex_colors=colors)
     if export:
@@ -148,7 +149,6 @@ class DataLoader:
         self.stage1_input = self.cfg.paths.preprocess.stage1.input
         self.render_dir = os.path.join(self.dataset_dir, self.stage1_input.render.folder_name)
         self.motion_dir = os.path.join(self.dataset_dir, self.stage1_input.motion.folder_name)
-        self.part_order = io.read_json(os.path.join(self.dataset_dir, self.stage1_input.part_order_file))
         self.data_info = pd.DataFrame()
 
     def parse_input(self):
@@ -174,7 +174,6 @@ class DataLoader:
             object_ids = io.alphanum_ordered_folder_list(object_cat_path)
             # object instance ids
             for object_id in object_ids:
-                object_part_order = self.part_order[object_cat][object_id]
                 object_id_path = os.path.join(object_cat_path, object_id)
                 articulation_ids = io.alphanum_ordered_folder_list(object_id_path)
                 # object with different articulations instance ids
@@ -187,9 +186,9 @@ class DataLoader:
                     metadata_file = self.stage1_input.render.metadata_file
                     num_renders = len(depth_frames)
                     df_row = pd.concat([pd.DataFrame(
-                        [[object_cat, object_id, object_part_order, articulation_id, depth_frames[i], mask_frames[i],
+                        [[object_cat, object_id, articulation_id, depth_frames[i], mask_frames[i],
                           metadata_file]],
-                        columns=['objectCat', 'objectId', 'partOrder', 'articulationId',
+                        columns=['objectCat', 'objectId', 'articulationId',
                                  'depthFrame', 'maskFrame', 'metadata']) for i in range(num_renders)],
                         ignore_index=True)
                     df_list.append(df_row)

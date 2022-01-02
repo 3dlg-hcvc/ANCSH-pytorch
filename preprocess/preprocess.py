@@ -19,6 +19,7 @@ def main(cfg: DictConfig):
     OmegaConf.update(cfg, "paths.result_dir", io.to_abs_path(cfg.paths.result_dir, get_original_cwd()))
 
     OmegaConf.update(cfg, "paths.preprocess.stage1.input", cfg.dataset.input)
+    print(cfg.paths.preprocess.input_dir)
 
     assert io.folder_exist(cfg.paths.preprocess.input_dir), "Dataset directory doesn't exist"
     io.ensure_dir_exists(cfg.paths.preprocess.output_dir)
