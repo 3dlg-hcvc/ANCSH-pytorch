@@ -1,6 +1,7 @@
 version: "v1.0"
 
 debug: true
+show: false
 
 defaults:
   - dataset: sapien
@@ -15,6 +16,11 @@ settings:
     process: true
   stage2:
     process: true
+    train_percent: 0.6
+    split_seed: 1
+
+params:
+  joint_association_threshold: 0.2
 
 # hydra configuration log output dir
 hydra:

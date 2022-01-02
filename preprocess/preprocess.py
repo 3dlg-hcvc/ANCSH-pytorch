@@ -36,7 +36,7 @@ def main(cfg: DictConfig):
     if cfg.settings.stage2.process:
         start = time.time()
         process_stage2 = ProcStage2(cfg)
-        process_stage2.split_data()
+        process_stage2.split_data(train_percent=cfg.settings.stage2.train_percent, seed=cfg.settings.stage2.split_seed)
         process_stage2.process()
         end = time.time()
         log.info(f'Stage2 process time {end - start}')

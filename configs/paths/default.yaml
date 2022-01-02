@@ -25,7 +25,6 @@ preprocess:
   stage2:
     input:
       split_info: "path"
-      split_seed: 1
       pcd_data: "${paths.preprocess.stage1.output.pcd_data}"
     tmp_output:
       folder_name: "stage2"
@@ -34,6 +33,8 @@ preprocess:
       pcd_npcs: "pcd_npcs_%03d_%03d.ply"
       pcd_naocs: "pcd_naocs_%03d_%03d.ply"
       pcd_npcs2camera: "pcd_npcs2camera_%03d_%03d.ply"
+      pcd_heatmap_unitvec: "pcd_heatmap_unitvec_%03d_%03d.ply"
+      pcd_joints_axis: "pcd_joints_axis_%03d_%03d.ply"
     output:
       split_info: "split_info.csv"
       train_data: "train.h5"
