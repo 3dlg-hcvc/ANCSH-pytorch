@@ -57,10 +57,10 @@ class ANCSHOptimizer:
         f = h5py.File(f"{self.cfg.paths.optimize.output_dir}/combined_result.h5", "w")
         f.attrs["network_type"] = self.f_ancsh["network_type"]
         # Record the errors
-        f.attrs["pose_err_rotation"] = mean_err_rotation
-        f.attrs["pose_err_translation"] = mean_err_translation
-        f.attrs["pose_acc_rotation"] = acc_err_rotation
-        f.attrs["pose_acc_rt"] = acc_err_rt
+        f.attrs["err_pose_rotation"] = mean_err_rotation
+        f.attrs["err_pose_translation"] = mean_err_translation
+        f.attrs["acc_pose_rotation"] = acc_err_rotation
+        f.attrs["acc_pose_rt"] = acc_err_rt
         for i, ins in enumerate(self.instances):
             result = self.results[i]
             group = f.create_group(ins)
