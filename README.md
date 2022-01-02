@@ -35,7 +35,9 @@ python train.py network=npcs_sapien test=False paths=shawn_lab
 python train.py network=ancsh_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
 python train.py network=npcs_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
 # Use kinematic constrained optimization to infer the pred part pose 
-python optimize.py 
+python optimize.py ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
+# Do evalaution
+python evaluate.py combined_result_path=<PATH_TO_COMBINED_REUSLTS>
 ```
 
 

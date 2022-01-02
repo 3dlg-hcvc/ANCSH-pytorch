@@ -9,7 +9,7 @@ def main(cfg):
     npcs_results_path = cfg.npcs_results_path
     optimizer = ANCSHOptimizer(cfg, ancsh_results_path, npcs_results_path)
     optimizer.optmimize(process_num=16)
-    optimizer.save()
+    optimizer.print_and_save()
 
 
 if __name__ == "__main__":

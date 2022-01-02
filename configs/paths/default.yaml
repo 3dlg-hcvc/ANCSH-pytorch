@@ -54,4 +54,7 @@ test:
   output_dir: "${paths.result_dir}/test_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
     
 optimize:
-  output_dir: "${paths.result_dir}/optimize_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+  output_dir: "${paths.result_dir}/optimize_output/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+
+evaluate:
+  output_dir: "${paths.result_dir}/evaluate_output/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"

@@ -56,7 +56,7 @@ class ANCSHTrainer:
                 # Move the tensors to the device
                 camcs_per_point = camcs_per_point.to(self.device)
                 gt = {}
-                for k, v in gt_dict:
+                for k, v in gt_dict.items():
                     gt[k] = v.to(self.device)
                 # Move the joint type to the device
                 joint_type = joint_type.to(self.device)
@@ -67,7 +67,7 @@ class ANCSHTrainer:
                 loss = torch.tensor(0.0, device=self.device)
                 loss_weight = self.cfg.network.loss_weight
                 # use different loss weight to calculate the final loss
-                for k, v in loss_dict:
+                for k, v in loss_dict.items():
                     if k not in loss_weight:
                         raise ValueError(f"No loss weight for {k}")
                     loss += loss_weight[k] * v
@@ -77,7 +77,7 @@ class ANCSHTrainer:
                     epoch_loss = loss_dict
                     epoch_loss["total_loss"] = loss
                 else:
-                    for k, v in loss_dict:
+                    for k, v in loss_dict.items():
                         epoch_loss[k] += v
                     epoch_loss["total_loss"] += loss
                 step_num += 1
@@ -118,7 +118,7 @@ class ANCSHTrainer:
                 # Move the tensors to the device
                 camcs_per_point = camcs_per_point.to(self.device)
                 gt = {}
-                for k, v in gt_dict:
+                for k, v in gt_dict.items():
                     gt[k] = v.to(self.device)
                 # Move the joint type to the device
                 joint_type = joint_type.to(self.device)
@@ -136,7 +136,7 @@ class ANCSHTrainer:
             group.attrs["filename"] = gt["filename"][b]
             group.create_dataset("camcs_per_point", data=camcs_per_point[b].detach().cpu().numpy(), compression="gzip")
             group.create_dataset("joint_type", data=joint_type[b].detach().cpu().numpy(), compression="gzip")
-            for k, v in pred:
+            for k, v in pred.items():
                 # Save the pred
                 group.create_dataset(f"pred_{k}", v[b].detach().cpu().numpy(), compression="gzip")
                 # Save the gt
