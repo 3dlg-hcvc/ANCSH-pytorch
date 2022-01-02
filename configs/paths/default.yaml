@@ -42,17 +42,16 @@ preprocess:
       val_data: "val.h5"
       test_data: "test.h5"
 
-
   output:
-    train: "${paths.preprocess.result_dir}/train.h5"
-    val: "${paths.preprocess.result_dir}/val.h5"
-    test: "${paths.preprocess.result_dir}/test.h5"
+    train: "${paths.preprocess.result_dir}/{paths.preprocess.stage2.output.train_data}"
+    val: "${paths.preprocess.result_dir}/{paths.preprocess.stage2.output.val_data}"
+    test: "${paths.preprocess.result_dir}/{paths.preprocess.stage2.output.test_data}"
 
 train:
-  output_dir: "${paths.project_dir}/train_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+  output_dir: "${paths.result_dir}/train_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
 
 test:
-  output_dir: "${paths.project_dir}/test_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+  output_dir: "${paths.result_dir}/test_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
     
 optimize:
-  output_dir: "${paths.project_dir}/optimize_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+  output_dir: "${paths.result_dir}/optimize_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
