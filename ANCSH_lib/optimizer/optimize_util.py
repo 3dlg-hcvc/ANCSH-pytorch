@@ -305,8 +305,8 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         err_scale.append(sdiff)
 
     return {
-        "pred_scale": pred_scale,
-        "pred_rt": pred_rt,
+        "pred_npcs_scale": pred_scale,
+        "pred_npcs_rt": pred_rt,
         "err_rotation": err_rotation,
         "err_translation": err_translation,
         "err_scale": err_scale,
