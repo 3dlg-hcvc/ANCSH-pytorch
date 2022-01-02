@@ -44,12 +44,12 @@ class ANCSHOptimizer:
         for i, ins in enumerate(self.instances):
             result = self.results[i]
             group = f.create_group(ins)
-            for k, v in self.f_ancsh[ins]:
+            for k, v in self.f_ancsh[ins].items():
                 # Use the pred seg and npcs from the npcs model
                 if k == "pred_npcs_per_point" or k == "pred_seg_per_point":
                     group.create_dataset(k, data=self.f_npcs[ins][k], compression="gzip")
                 group.create_dataset(k, data=v, compression="gzip")
-            for k, v in result:
+            for k, v in result.items():
                 group.create_dataset(k, data=v, compression="gzip")
 
 
