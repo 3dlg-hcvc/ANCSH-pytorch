@@ -8,9 +8,11 @@ import os
 import h5py
 import logging
 
+
 def existDir(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
+
 
 class ANCSHTrainer:
     def __init__(self, cfg, data_path, network_type, num_parts, device=None):
@@ -20,30 +22,31 @@ class ANCSHTrainer:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.device = device
 
-        self.writer = SummaryWriter(cfg.paths.train.output_dir)
-
         self.network_type = network_type
         self.num_parts = num_parts
         self.max_epochs = cfg.network.max_epochs
         self.model = self.build_model()
         self.model.to(device)
-        self.log = logging.getLogger('Network')
+        self.log = logging.getLogger("Network")
 
         self.log.info(f"Below is the network structure:\n {self.model}")
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.network.lr, betas=(0.9, 0.99))
+        self.log.info(f"Working on {self.device}")
+
+        self.optimizer = optim.Adam(
+            self.model.parameters(), lr=cfg.network.lr, betas=(0.9, 0.99)
+        )
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
 
         self.data_path = data_path
         self.train_loader = torch.utils.data.DataLoader(
-            ANCSHDataset(self.data_path["train"], num_points=self.cfg.network.num_points),
+            ANCSHDataset(
+                self.data_path["train"], num_points=self.cfg.network.num_points
+            ),
             batch_size=cfg.network.batch_size,
             shuffle=True,
             num_workers=cfg.network.num_workers,
         )
-
-    def __del__(self):
-        self.writer.close()
 
     def build_model(self):
         model = ANCSH(self.network_type, self.num_parts)
@@ -51,6 +54,7 @@ class ANCSHTrainer:
 
     def train(self):
         self.model.train()
+        self.writer = SummaryWriter(self.cfg.paths.train.output_dir)
         for epoch in range(self.max_epochs):
             epoch_loss = None
             step_num = 0
@@ -72,7 +76,7 @@ class ANCSHTrainer:
                         raise ValueError(f"No loss weight for {k}")
                     loss += loss_weight[k] * v
 
-                # Used to calcuate the avg loss  
+                # Used to calcuate the avg loss
                 if epoch_loss == None:
                     epoch_loss = loss_dict
                     epoch_loss["total_loss"] = loss
@@ -87,8 +91,8 @@ class ANCSHTrainer:
                 self.optimizer.step()
             self.scheduler.step()
             # Add the loss values into the tensorboard
-            for k,v  in epoch_loss.items():
-                epoch_loss[k] = v/step_num
+            for k, v in epoch_loss.items():
+                epoch_loss[k] = v / step_num
                 self.writer.add_scalar(f"loss/{k}", epoch_loss[k], epoch)
 
             if not epoch == 0 and epoch % self.cfg.log_frequency == 0:
@@ -96,22 +100,32 @@ class ANCSHTrainer:
                 for k, v in epoch_loss.items():
                     output_string += f"{k}: {round(float(v), 5)}  "
                 self.log.info(output_string)
-            
-            if not epoch == 0 and epoch % self.cfg.model_frequency == 0 or epoch == self.max_epochs - 1:
-                # Save the model 
-                existDir(f"{self.cfg.paths.train.output_dir}")
-                torch.save({
-                    'epoch': epoch,
-                    'model_state_dict': self.model.state_dict(),
-                    'optimizer_state_dict': self.optimizer.state_dict(),
-                }, f"{self.cfg.paths.train.output_dir}/model_{epoch}.pth")
 
+            if (
+                not epoch == 0
+                and epoch % self.cfg.model_frequency == 0
+                or epoch == self.max_epochs - 1
+            ):
+                # Save the model
+                existDir(f"{self.cfg.paths.train.output_dir}")
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "model_state_dict": self.model.state_dict(),
+                        "optimizer_state_dict": self.optimizer.state_dict(),
+                    },
+                    f"{self.cfg.paths.train.output_dir}/model_{epoch}.pth",
+                )
+        self.writer.close()
 
     def test(self, inference_model):
         test_loader = torch.utils.data.DataLoader(
             ANCSHDataset(
-                self.data_path["test"], batch_size=16, shuffle=False, num_workers=4
-            )
+                self.data_path["test"], num_points=self.cfg.network.num_points
+            ),
+            batch_size=self.cfg.network.batch_size,
+            shuffle=False,
+            num_workers=self.cfg.network.num_workers,
         )
         # Load the model
         self.log.info(f"Load model from {inference_model}")
@@ -127,25 +141,34 @@ class ANCSHTrainer:
                 gt = {}
                 for k, v in gt_dict.items():
                     gt[k] = v.to(self.device)
-                    
+
                 pred = self.model(camcs_per_point)
                 self.save_results(pred, camcs_per_point, gt, id)
-    
+
     def save_results(self, pred, camcs_per_point, gt, id):
         # Save the results and gt into hdf5 for further optimization
         batch_size = pred["seg_per_point"].shape[0]
-        f = h5py.File(f"{self.cfg.paths.test.output_dir}/pred_gt.h5", 'w')
+        existDir(f"{self.cfg.paths.test.output_dir}")
+        f = h5py.File(f"{self.cfg.paths.test.output_dir}/pred_gt.h5", "w")
         f.attrs["network_type"] = self.network_type
-        for b in batch_size:
+        for b in range(batch_size):
             group = f.create_group(f"{id[b]}")
-            group.create_dataset("camcs_per_point", data=camcs_per_point[b].detach().cpu().numpy(), compression="gzip")
+            group.create_dataset(
+                "camcs_per_point",
+                data=camcs_per_point[b].detach().cpu().numpy(),
+                compression="gzip",
+            )
             for k, v in pred.items():
                 # Save the pred
-                group.create_dataset(f"pred_{k}", v[b].detach().cpu().numpy(), compression="gzip")
-            for k, v in gt.items(): 
+                group.create_dataset(
+                    f"pred_{k}", data=v[b].detach().cpu().numpy(), compression="gzip"
+                )
+            for k, v in gt.items():
                 # Save the gt
-                group.create_dataset(f"gt_{k}", gt[k][b].detach().cpu().numpy(), compression="gzip")
-            
+                group.create_dataset(
+                    f"gt_{k}", data=gt[k][b].detach().cpu().numpy(), compression="gzip"
+                )
+
     def resume_train(self, model):
         self.log.info(f"Load model from {model}")
         # Load the model
