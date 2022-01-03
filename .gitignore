@@ -132,8 +132,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# dataset folders
-sapien/
+# datasets folder
+datasets/
 
 # result folder
 results/

@@ -32,6 +32,7 @@ preprocess:
       pcd_camera: "pcd_camera_%03d_%03d.ply"
       pcd_npcs: "pcd_npcs_%03d_%03d.ply"
       pcd_naocs: "pcd_naocs_%03d_%03d.ply"
+      arrows_naocs: "arrows_naocs_%03d_%03d.ply"
       pcd_npcs2camera: "pcd_npcs2camera_%03d_%03d.ply"
       pcd_heatmap_unitvec: "pcd_heatmap_unitvec_%03d_%03d.ply"
       pcd_joints_axis: "pcd_joints_axis_%03d_%03d.ply"
