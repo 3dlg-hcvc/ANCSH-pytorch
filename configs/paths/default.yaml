@@ -1,7 +1,6 @@
 version: "1.0"
 
 dataset_dir: ??? # path to datasets folder
-project_dir: ???
 result_dir: ??? # path to result folder
 
 preprocess:
@@ -43,9 +42,9 @@ preprocess:
       test_data: "test.h5"
 
   output:
-    train: "${paths.result_dir}/${paths.preprocess.stage2.output.train_data}"
-    val: "${paths.result_dir}/${paths.preprocess.stage2.output.val_data}"
-    test: "${paths.result_dir}/${paths.preprocess.stage2.output.test_data}"
+    train: "${paths.preprocess.output_dir}/${paths.preprocess.stage2.output.train_data}"
+    val: "${paths.preprocess.output_dir}/${paths.preprocess.stage2.output.val_data}"
+    test: "${paths.preprocess.output_dir}/${paths.preprocess.stage2.output.test_data}"
 
 train:
   output_dir: "${paths.result_dir}/train_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"

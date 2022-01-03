@@ -1,7 +1,7 @@
 import h5py
 import multiprocessing
 
-from .optimize_util import optimize_with_kinematic
+from ANCSH_lib.optimizer.optimize_util import optimize_with_kinematic
 
 import numpy as np
 import os

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ANCSH_lib.model.backbone import PointNet2
-import ANCSH_lib.model.loss as loss
+from ANCSH_lib.model import loss
 
 
 class ANCSH(nn.Module):
