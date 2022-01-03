@@ -311,7 +311,7 @@ class ProcStage2:
             h5frame.attrs['frameId'] = row["frameId"]
             h5frame.attrs['numParts'] = num_parts
             h5frame.attrs['id'] = instance_name
-            h5frame.create_dataset("seg_per_point", shape=points_class.shape, data=mask, compression="gzip")
+            h5frame.create_dataset("seg_per_point", shape=points_class.shape, data=points_class, compression="gzip")
             h5frame.create_dataset("camcs_per_point", shape=points_camera.shape, data=points_camera, compression="gzip")
             h5frame.create_dataset("npcs_per_point", shape=npcs.shape, data=npcs, compression="gzip")
             h5frame.create_dataset("naocs_per_point", shape=naocs.shape, data=naocs, compression="gzip")
