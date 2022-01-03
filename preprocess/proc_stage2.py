@@ -311,7 +311,7 @@ class ProcStage2:
             h5frame.attrs['frameId'] = row["frameId"]
             h5frame.attrs['numParts'] = num_parts
             h5frame.attrs['id'] = instance_name
-            h5frame.create_dataset("seg_per_point", shape=points_class.shape, data=mask, compression="gzip")
+            h5frame.create_dataset("seg_per_point", shape=points_class.shape, data=points_class, compression="gzip")
             h5frame.create_dataset("camcs_per_point", shape=points_camera.shape, data=points_camera, compression="gzip")
             h5frame.create_dataset("npcs_per_point", shape=npcs.shape, data=npcs, compression="gzip")
             h5frame.create_dataset("naocs_per_point", shape=naocs.shape, data=naocs, compression="gzip")
@@ -319,7 +319,7 @@ class ProcStage2:
                                    compression="gzip")
             h5frame.create_dataset("unitvec_per_point", shape=points_unitvec.shape, data=points_unitvec,
                                    compression="gzip")
-            h5frame.create_dataset("joint_axis_per_point", shape=joints_axis.shape, data=joints_axis,
+            h5frame.create_dataset("axis_per_point", shape=joints_axis.shape, data=joints_axis,
                                    compression="gzip")
             h5frame.create_dataset("joint_cls_per_point", shape=joints_association.shape, data=joints_association,
                                    compression="gzip")
@@ -334,9 +334,12 @@ class ProcStage2:
                                    data=naocs2cam_transformation, compression="gzip")
             h5frame.create_dataset("naocs2cam_scale", shape=(1,), data=naocs2cam_scale,
                                    compression="gzip")
-            h5frame.create_dataset("parts_min_bound", shape=parts_min_bounds.shape, data=parts_min_bounds,
+            norm_factors = 1.0 / parts_npcs2cam_scale
+            h5frame.create_dataset("norm_factors", shape=norm_factors.shape, data=norm_factors,
                                    compression="gzip")
-            h5frame.create_dataset("parts_max_bound", shape=parts_max_bounds.shape, data=parts_max_bounds,
+            # part bounds at rest state
+            norm_corners = np.stack((parts_min_bounds, parts_max_bounds), axis=1)
+            h5frame.create_dataset("norm_corners", shape=norm_corners.shape, data=norm_corners,
                                    compression="gzip")
 
         h5file.close()
