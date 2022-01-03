@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import itertools
+import os
 
 
 def get_3d_bbox(scale, shift=0):
@@ -88,6 +89,12 @@ def dist_between_3d_lines(p1, e1, p2, e2):
 
     return np.abs(dist)
 
+def existDir(dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+
+
+
 
 class ANCSHEvaluator:
     def __init__(self, cfg, combined_results_path):
@@ -102,34 +109,34 @@ class ANCSHEvaluator:
         for instance in self.instances:
             ins_combined = self.f_combined[instance]
             # Get the useful information from the combined_results
-            pred_seg_per_point = ins_combined["pred_seg_per_point"]
-            pred_npcs_per_point = ins_combined["pred_npcs_per_point"]
-            pred_naocs_per_point = ins_combined["pred_naocs_per_point"]
-            gt_naocs_per_point = ins_combined["gt_naocs_per_point"]
+            pred_seg_per_point = ins_combined["pred_seg_per_point"][:]
+            pred_npcs_per_point = ins_combined["pred_npcs_per_point"][:]
+            pred_naocs_per_point = ins_combined["pred_naocs_per_point"][:]
+            gt_naocs_per_point = ins_combined["gt_naocs_per_point"][:]
 
-            pred_unitvec_per_point = ins_combined["pred_unitvec_per_point"]
-            gt_unitvec_per_point = ins_combined["gt_unitvec_per_point"]
-            pred_heatmap_per_point = ins_combined["pred_heatmap_per_point"]
-            gt_heatmap_per_point = ins_combined["gt_heatmap_per_point"]
-            pred_axis_per_point = ins_combined["pred_axis_per_point"]
-            gt_axis_per_point = ins_combined["gt_axis_per_point"]
-            pred_joint_cls_per_point = ins_combined["pred_joint_cls_per_point"]
-            gt_joint_cls_per_point = ins_combined["gt_joint_cls_per_point"]
+            pred_unitvec_per_point = ins_combined["pred_unitvec_per_point"][:]
+            gt_unitvec_per_point = ins_combined["gt_unitvec_per_point"][:]
+            pred_heatmap_per_point = ins_combined["pred_heatmap_per_point"][:]
+            gt_heatmap_per_point = ins_combined["gt_heatmap_per_point"][:]
+            pred_axis_per_point = ins_combined["pred_axis_per_point"][:]
+            gt_axis_per_point = ins_combined["gt_axis_per_point"][:]
+            pred_joint_cls_per_point = ins_combined["pred_joint_cls_per_point"][:]
+            gt_joint_cls_per_point = ins_combined["gt_joint_cls_per_point"][:]
 
-            gt_npcs_scale = ins_combined["gt_npcs_scale"]
-            gt_npcs_rt = ins_combined["gt_npcs_rt"]
-            gt_naocs_scale = ins_combined["gt_naocs_scale"]
-            gt_naocs_rt = ins_combined["gt_naocs_rt"]
-            pred_npcs_scale = ins_combined["pred_npcs_scale"]
-            pred_npcs_rt = ins_combined["pred_npcs_rt"]
+            gt_npcs_scale = ins_combined["gt_npcs2cam_scale"][:]
+            gt_npcs_rt = ins_combined["gt_npcs2cam_rt"][:]
+            gt_naocs_scale = ins_combined["gt_naocs2cam_scale"][:]
+            gt_naocs_rt = ins_combined["gt_naocs2cam_rt"][:]
+            pred_npcs_scale = ins_combined["pred_npcs2cam_scale"][:]
+            pred_npcs_rt = ins_combined["pred_npcs2cam_rt"][:]
 
             pred_partIndex_per_point = np.argmax(pred_seg_per_point, axis=1)
             pred_jointIndex_per_point = np.argmax(pred_joint_cls_per_point, axis=1)
-            gt_jointIndex_per_point = np.argmax(gt_joint_cls_per_point, axis=1)
+            gt_jointIndex_per_point = gt_joint_cls_per_point
 
             # Get the norm factors and corners used to calculate NPCS to calculate the 3dbbx
             gt_norm_factors = ins_combined["gt_norm_factors"]
-            gt_corners = ins_combined["gt_corners"]
+            gt_corners = ins_combined["gt_norm_corners"]
 
             result = {
                 "err_pose_scale": [],
@@ -208,12 +215,12 @@ class ANCSHEvaluator:
                 gt_scaled_3dbbx = gt_3dbbx * gt_npcs_scale[partIndex]
                 pred_scaled_3dbbx = pred_3dbbx * pred_npcs_scale[partIndex]
                 gt_cam_3dbbx = (
-                    np.dot(gt_npcs_rt[:3, :3], gt_scaled_3dbbx.T).T
-                    + gt_npcs_rt[:3, 3].T
+                    np.dot(gt_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, :3], gt_scaled_3dbbx.T).T
+                    + gt_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, 3].T
                 )
                 pred_cam_3dbbx = (
-                    np.dot(pred_npcs_rt[:3, :3], pred_scaled_3dbbx.T).T
-                    + pred_npcs_rt[:3, 3].T
+                    np.dot(pred_npcs_rt[partIndex][:3, :3], pred_scaled_3dbbx.T).T
+                    + pred_npcs_rt[partIndex][:3, 3].T
                 )
                 iou_cam_3dbbx = iou_3d(gt_cam_3dbbx, pred_cam_3dbbx)
                 result["gt_cam_3dbbx"].append(gt_cam_3dbbx)
@@ -238,6 +245,8 @@ class ANCSHEvaluator:
                     )
 
                 if partIndex >= 1:
+                    pred_naocs_all = np.zeros_like(gt_naocs_per_point)
+                    pred_naocs_all[pred_part_points_index, :] = pred_naocs
                     # joint 0 is meaningless, the joint index starts from 1
                     thres_r = self.cfg.evaluation.thres_r
                     # Calculate the predicted joint info
@@ -245,8 +254,8 @@ class ANCSHEvaluator:
                         pred_unitvec_per_point
                         * (1 - pred_heatmap_per_point.reshape(-1, 1))
                         * thres_r
-                    )
-                    pred_joint_pts = pred_naocs_per_point + pred_offset
+                    )   
+                    pred_joint_pts = pred_naocs_all + pred_offset
                     pred_joint_points_index = np.where(
                         pred_jointIndex_per_point == partIndex
                     )[0]
@@ -265,12 +274,12 @@ class ANCSHEvaluator:
                     )
                     pred_joint_pt_cam = (
                         np.dot(
-                            pred_npcs_rt[:3, :3], pred_npcs_scale * temp_joint_pt_npcs.T
+                            pred_npcs_rt[partIndex][:3, :3], pred_npcs_scale[partIndex] * temp_joint_pt_npcs.T
                         ).T
-                        + pred_npcs_rt[:3, 3]
+                        + pred_npcs_rt[partIndex][:3, 3]
                     )
                     pred_joint_axis_cam = np.dot(
-                        pred_npcs_rt[:3, :3], pred_joint_axis.T
+                        pred_npcs_rt[partIndex][:3, :3], pred_joint_axis.T
                     ).T
                     result["pred_joint_axis_cam"].append(pred_joint_axis_cam)
                     result["pred_joint_pt_cam"].append(pred_joint_pt_cam)
@@ -292,10 +301,10 @@ class ANCSHEvaluator:
                     result["gt_joint_pt_naocs"].append(gt_joint_pt)
                     # Conver the gt joint into camera coordinate using the naocs pose, naocs -> camera
                     gt_joint_pt_cam = (
-                        np.dot(gt_naocs_rt[:3, :3], gt_naocs_scale * gt_joint_pt.T).T
-                        + gt_naocs_rt[:3, 3]
+                        np.dot(gt_naocs_rt.reshape((4, 4), order='F')[:3, :3], gt_naocs_scale * gt_joint_pt.T).T
+                        + gt_naocs_rt.reshape((4, 4), order='F')[:3, 3]
                     )
-                    gt_joint_axis_cam = np.dot(gt_naocs_rt[:3, :3], gt_joint_axis.T).T
+                    gt_joint_axis_cam = np.dot(gt_naocs_rt.reshape((4, 4), order='F')[:3, :3], gt_joint_axis.T).T
                     result["gt_joint_axis_cam"].append(gt_joint_axis_cam)
                     result["gt_joint_pt_cam"].append(gt_joint_pt_cam)
                     # Calculate the error between the gt joints and pred joints in the camera coordinate
@@ -312,6 +321,7 @@ class ANCSHEvaluator:
                     result["err_joint_line"].append(err_joint_line)
 
             self.results.append(result)
+        self.print_and_save()
 
     def print_and_save(self):
         # Print the mean errors for scale, volume
@@ -335,7 +345,9 @@ class ANCSHEvaluator:
         print(f"Mean joint axis error in camera coordinate (degree): {mean_err_joint_axis}")
         print(f"Mean joint axis line distance in camera coordinate (m): {mean_err_joint_line}")
 
-        f = h5py.File(f"{self.cfg.paths.evaluate.output_dir}/final_results.h5")
+        existDir(self.cfg.paths.evaluate.output_dir)
+
+        f = h5py.File(f"{self.cfg.paths.evaluate.output_dir}/final_results.h5", "w")
         for k, v in self.f_combined.attrs.items():
             f.attrs[k] = v
         f.attrs["err_pose_scale"] = mean_err_pose_scale

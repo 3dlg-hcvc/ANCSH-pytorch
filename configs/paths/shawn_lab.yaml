@@ -2,4 +2,5 @@ defaults:
   - default
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
-dataset_dir: "/home/sam/Development/Research/ancsh/ANCSH-pytorch/datasets/sapien"
+dataset_dir: "/localhome/hja40/Desktop/Research/proj-motionnet/ANCSH-pytorch/datasets/sapien"
+result_dir: "/localhome/hja40/Desktop/Research/proj-motionnet/ANCSH-pytorch/data"

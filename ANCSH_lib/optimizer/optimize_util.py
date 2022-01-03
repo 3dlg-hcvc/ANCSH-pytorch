@@ -56,8 +56,8 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
     # T0 = np.mean(target0_scaled_centered.T - np.matmul(R0, source0_centered.T), 1)
     # T1 = np.mean(target0_scaled_centered.T - np.matmul(R0, source0_centered.T), 1)
 
-    rotvec0 = srot.from_dcm(R0).as_rotvec()
-    rotvec1 = srot.from_dcm(R1).as_rotvec()
+    rotvec0 = srot.from_matrix(R0).as_rotvec()
+    rotvec1 = srot.from_matrix(R1).as_rotvec()
     # print('initialize rotvec0 vs rotvec1: \n', rotvec0, rotvec1)
     if joint_type == 0:
         # 0 represents primatic
@@ -112,12 +112,15 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
                 False,
             ),
         )
-    R0 = srot.from_rotvec(res.x[:3]).as_dcm()
-    R1 = srot.from_rotvec(res.x[3:]).as_dcm()
+    R0 = srot.from_rotvec(res.x[:3]).as_matrix()
+    R1 = srot.from_rotvec(res.x[3:]).as_matrix()
 
     translation0 = np.mean(target0.T - scale0 * np.matmul(R0, source0.T), 1)
     translation1 = np.mean(target1.T - scale1 * np.matmul(R1, source1.T), 1)
-
+    # Only for debug
+    # if np.isnan(translation0).any() or np.isnan(translation1).any():
+    #     translation0 = np.zeros(3)
+    #     translation1 = np.zeros(3)
     jtrans = dict()
     jtrans["rotation0"] = R0
     jtrans["scale0"] = scale0
@@ -254,7 +257,7 @@ def rot_diff_rad(rot1, rot2):
 
 def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold):
     camcs_per_point = ins_ancsh["camcs_per_point"]
-    joint_type = ins_ancsh["joint_type"]
+    gt_joint_type = ins_ancsh["gt_joint_type"]
     # Get the predicted segmentation and npcs from the NPCS model results
     pred_npcs_per_point = ins_npcs["pred_npcs_per_point"]
     pred_seg_per_point = ins_npcs["pred_seg_per_point"]
@@ -262,9 +265,9 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
     # Get the joint prediction from ANCSH model results
     pred_joint_cls_per_point = ins_ancsh["pred_joint_cls_per_point"]
     pred_axis_per_point = ins_ancsh["pred_axis_per_point"]
-    # Get the gt pose
-    gt_rt = ins_ancsh["gt_rt"]
-    gt_scale = ins_ancsh["gt_scale"]
+    # Get the gt pose for npcs2cam
+    gt_rt = ins_ancsh["gt_npcs2cam_rt"]
+    gt_scale = ins_ancsh["gt_npcs2cam_scale"]
 
     # Get the point mask
     partIndex = []
@@ -297,7 +300,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         # Get the constrained joint info
         data["joint_direction"] = np.median(pred_axis_per_point[jointIndex[i-1]], axis=0)
 
-        assert joint_type >= 0
+        assert gt_joint_type[i] >= 0
 
         best_model, best_inliers = ransac(
             data,
@@ -305,13 +308,13 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
             joint_transformation_verifier,
             choose_threshold,
             niter,
-            joint_type[i],
+            gt_joint_type[i],
         )
 
         if i == 1:
             # Record the pred things and error for base part
-            rdiff = rot_diff_degree(best_model["rotation0"], gt_rt[0][:3, :3])
-            tdiff = np.linalg.norm(best_model["translation0"] - gt_rt[0][:3, 3])
+            rdiff = rot_diff_degree(best_model["rotation0"], (gt_rt[0]).reshape((4, 4), order='F')[:3, :3])
+            tdiff = np.linalg.norm(best_model["translation0"] - (gt_rt[0]).reshape((4, 4), order='F')[:3, 3])
             sdiff = np.linalg.norm(best_model["scale0"] - gt_scale[0])
             pred_scale.append(best_model["scale0"])
             rt = np.zeros((4, 4))
@@ -323,8 +326,8 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
             err_translation.append(tdiff)
             err_scale.append(sdiff)
         # Record the pred things and error for moving parts
-        rdiff = rot_diff_degree(best_model["rotation1"], gt_rt[i][:3, :3])
-        tdiff = np.linalg.norm(best_model["translation1"] - gt_rt[i][:3, 3])
+        rdiff = rot_diff_degree(best_model["rotation1"], (gt_rt[i]).reshape((4, 4), order='F')[:3, :3])
+        tdiff = np.linalg.norm(best_model["translation1"] - (gt_rt[i]).reshape((4, 4), order='F')[:3, 3])
         sdiff = np.linalg.norm(best_model["scale1"] - gt_scale[i])
         pred_scale.append(best_model["scale1"])
         rt = np.zeros((4, 4))
@@ -337,8 +340,8 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         err_scale.append(sdiff)
 
     return {
-        "pred_npcs_scale": pred_scale,
-        "pred_npcs_rt": pred_rt,
+        "pred_npcs2cam_scale": pred_scale,
+        "pred_npcs2cam_rt": pred_rt,
         "err_rotation": err_rotation,
         "err_translation": err_translation,
         "err_scale": err_scale,

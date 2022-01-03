@@ -29,15 +29,15 @@ pip install scipy
 - train the model
 ```bash
 # Train the two models for SAPIEN drawer dataset
-python train.py network=ancsh_sapien test=False paths=shawn_lab
-python train.py network=npcs_sapien test=False paths=shawn_lab
+python train.py network=ancsh_sapien test=False paths=shawn_lab network.max_epochs=20000 model_frequency=2000
+python train.py network=npcs_sapien test=False paths=shawn_lab network.max_epochs=20000 model_frequency=2000
 # Inference on the trained models
 python train.py network=ancsh_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
 python train.py network=npcs_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
 # Use kinematic constrained optimization to infer the pred part pose 
-python optimize.py ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
+python optimize.py optimization=sapien_urdf paths=shawn_lab ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
 # Do evalaution
-python evaluate.py combined_result_path=<PATH_TO_COMBINED_REUSLTS>
+python evaluate.py evaluation=sapien_urdf paths=shawn_lab combined_result_path=<PATH_TO_COMBINED_REUSLTS>
 ```
 
 

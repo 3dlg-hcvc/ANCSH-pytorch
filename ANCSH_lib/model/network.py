@@ -15,7 +15,7 @@ class ANCSH(nn.Module):
 
         if self.network_type == "ancsh":
             # segmentation branch
-            self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding=0)
+            self.seg_layer = nn.Conv1d(128, num_parts, kernel_size=1, padding=0)
             # NPCS branch
             self.npcs_layer = nn.Sequential(
                 nn.Conv1d(128, 128, kernel_size=1, padding=0),
@@ -48,7 +48,7 @@ class ANCSH(nn.Module):
             )
         elif self.network_type == "npcs":
             # segmentation branch
-            self.seg_layer = nn.Conv1d(128, 3, kernel_size=1, padding=0)
+            self.seg_layer = nn.Conv1d(128, num_parts, kernel_size=1, padding=0)
             # NPCS branch
             self.npcs_layer = nn.Conv1d(
                 128, 3 * num_parts, kernel_size=1, padding=0
@@ -109,11 +109,11 @@ class ANCSH(nn.Module):
 
         return pred
 
-    def losses(self, pred, gt, joint_type):
+    def losses(self, pred, gt):
         # The returned loss is a value
         num_parts = pred["seg_per_point"].shape[2]
         # Convert the gt['seg_per_point'] into gt_seg_onehot B*N*K
-        gt_seg_onehot = F.one_hot(gt["seg_per_point"], num_class=num_parts)
+        gt_seg_onehot = F.one_hot(gt["seg_per_point"].long(), num_classes=num_parts)
         # pred['seg_per_point']: B*N*K, gt_seg_onehot: B*N*K
         seg_loss = loss.compute_miou_loss(pred["seg_per_point"], gt_seg_onehot)
         # pred['npcs_per_point']: B*N*3K, gt['npcs_per_point']: B*N*3, gt_seg_onehot: B*N*K
@@ -136,14 +136,11 @@ class ANCSH(nn.Module):
             # B*N 
             gt_joint_mask = (gt["joint_cls_per_point"] > 0).float()
             # Get the heatmap and unitvec map, the loss should only be calculated for revolute joint
-            gt_revolute_mask = None
-            revlote_index = torch.where(joint_type == 1)[0]
-            assert joint_type[0] == -1
+            gt_revolute_mask = torch.zeros_like(gt["joint_cls_per_point"]) == 1
+            revlote_index = torch.where(gt["joint_type"] == 1)[0]
+            assert (gt["joint_type"][:, 0]==-1).all() == True
             for i in revlote_index:
-                if gt_revolute_mask == None:
-                    gt_revolute_mask = (gt["joint_cls_per_point"] == i)
-                else:
-                    gt_revolute_mask = torch.logical_or(gt_revolute_mask, (gt["joint_cls_per_point"] == i))
+                gt_revolute_mask = torch.logical_or(gt_revolute_mask, (gt["joint_cls_per_point"] == i))
             gt_revolute_mask = gt_revolute_mask.float()
             # pred['heatmap_per_point']: B*N*1, gt['heatmap_per_point']: B*N, gt_revolute_mask: B*N
             heatmap_loss = loss.compute_vect_loss(
@@ -160,7 +157,7 @@ class ANCSH(nn.Module):
 
             # Conver the gt['joint_cls_per_point'] into gt_joint_cls_onehot B*N*K
             gt_joint_cls_onehot = F.one_hot(
-                gt["joint_cls_per_point"], num_class=num_parts
+                gt["joint_cls_per_point"].long(), num_classes=num_parts
             )
             joint_loss = loss.compute_miou_loss(
                 pred["joint_cls_per_point"], gt_joint_cls_onehot
