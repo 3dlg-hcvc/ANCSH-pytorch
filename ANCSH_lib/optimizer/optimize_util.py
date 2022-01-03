@@ -117,9 +117,10 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
 
     translation0 = np.mean(target0.T - scale0 * np.matmul(R0, source0.T), 1)
     translation1 = np.mean(target1.T - scale1 * np.matmul(R1, source1.T), 1)
-    if np.isnan(translation0).any() or np.isnan(translation1).any():
-        translation0 = np.zeros(3)
-        translation1 = np.zeros(3)
+    # Only for debug
+    # if np.isnan(translation0).any() or np.isnan(translation1).any():
+    #     translation0 = np.zeros(3)
+    #     translation1 = np.zeros(3)
     jtrans = dict()
     jtrans["rotation0"] = R0
     jtrans["scale0"] = scale0
@@ -339,8 +340,8 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         err_scale.append(sdiff)
 
     return {
-        "pred_npcs_scale": pred_scale,
-        "pred_npcs_rt": pred_rt,
+        "pred_npcs2cam_scale": pred_scale,
+        "pred_npcs2cam_rt": pred_rt,
         "err_rotation": err_rotation,
         "err_translation": err_translation,
         "err_scale": err_scale,

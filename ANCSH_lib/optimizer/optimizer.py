@@ -26,7 +26,7 @@ class ANCSHOptimizer:
         self.f_npcs = h5py.File(npcs_results_path, "r")
         self.instances = sorted(self.f_ancsh.keys())
 
-    def optmimize(self, process_num=4):
+    def optimize(self, process_num=4):
         pool = multiprocessing.Pool(processes=process_num)
         print(f"runing {self.cfg.optimization.niter} iterations for ransac")
 
