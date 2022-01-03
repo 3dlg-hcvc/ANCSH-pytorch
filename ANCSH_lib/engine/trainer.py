@@ -91,13 +91,13 @@ class ANCSHTrainer:
                 epoch_loss[k] = v/step_num
                 self.writer.add_scalar(f"loss/{k}", epoch_loss[k], epoch)
 
-            if epoch % self.cfg.log_frequency == 0:
+            if not epoch == 0 and epoch % self.cfg.log_frequency == 0:
                 output_string = f"Epoch: {epoch}  "
                 for k, v in epoch_loss.items():
-                    output_string += f"{k}: {v}  "
+                    output_string += f"{k}: {round(v, 5)}  "
                 self.log.info(output_string)
             
-            if epoch % self.cfg.model_frequency == 0 or epoch == self.max_epochs - 1:
+            if not epoch == 0 and epoch % self.cfg.model_frequency == 0 or epoch == self.max_epochs - 1:
                 # Save the model 
                 existDir(f"{self.cfg.paths.train.output_dir}")
                 torch.save({
