@@ -4,6 +4,7 @@ ancsh_results_path: ???
 npcs_results_path: ???
 
 defaults:
+  - paths: ???
   - optimization: ???
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
