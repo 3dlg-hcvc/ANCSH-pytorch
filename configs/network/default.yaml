@@ -4,6 +4,7 @@ num_parts: ???
 lr: 0.001
 batch_size: 16
 num_workers: 4
+num_points: 1024
 
 # Loss weights
 loss_weight: 

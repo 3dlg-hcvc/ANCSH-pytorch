@@ -4,3 +4,4 @@ defaults:
 
 dataset_dir: "/home/sam/Development/Research/ancsh/ANCSH-pytorch/datasets/sapien"
 project_dir: "/localhome/hja40/Desktop/Research/proj-motionnet/ANCSH-pytorch"
+result_dir: "${paths.project_dir}/data"
