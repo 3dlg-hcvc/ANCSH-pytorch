@@ -34,7 +34,7 @@ class ANCSHTrainer:
 
         self.data_path = data_path
         self.train_loader = torch.utils.data.DataLoader(
-            ANCSHDataset(self.data_path["train"]),
+            ANCSHDataset(self.data_path["train"], num_points=self.cfg.network.num_points),
             batch_size=cfg.network.batch_size,
             shuffle=True,
             num_workers=cfg.network.num_workers,
@@ -52,17 +52,15 @@ class ANCSHTrainer:
         for epoch in range(self.max_epochs):
             epoch_loss = None
             step_num = 0
-            for camcs_per_point, gt_dict, joint_type in self.train_loader:
+            for camcs_per_point, gt_dict, id in self.train_loader:
                 # Move the tensors to the device
                 camcs_per_point = camcs_per_point.to(self.device)
                 gt = {}
                 for k, v in gt_dict.items():
                     gt[k] = v.to(self.device)
-                # Move the joint type to the device
-                joint_type = joint_type.to(self.device)
                 # Get the loss
                 pred = self.model(camcs_per_point)
-                loss_dict = self.model.losses(pred, gt, joint_type)
+                loss_dict = self.model.losses(pred, gt)
 
                 loss = torch.tensor(0.0, device=self.device)
                 loss_weight = self.cfg.network.loss_weight
@@ -114,31 +112,28 @@ class ANCSHTrainer:
 
         self.model.eval()
         with torch.no_grad():
-            for camcs_per_point, gt_dict, joint_type in test_loader:
+            for camcs_per_point, gt_dict, id in test_loader:
                 # Move the tensors to the device
                 camcs_per_point = camcs_per_point.to(self.device)
                 gt = {}
                 for k, v in gt_dict.items():
                     gt[k] = v.to(self.device)
-                # Move the joint type to the device
-                joint_type = joint_type.to(self.device)
                     
                 pred = self.model(camcs_per_point)
-                self.save_results(pred, camcs_per_point, gt, joint_type)
+                self.save_results(pred, camcs_per_point, gt, id)
     
-    def save_results(self, pred, camcs_per_point, gt, joint_type):
+    def save_results(self, pred, camcs_per_point, gt, id):
         # Save the results and gt into hdf5 for further optimization
         batch_size = pred["seg_per_point"].shape[0]
         f = h5py.File(f"{self.cfg.paths.test.output_dir}/pred_gt.h5", 'w')
         f.attrs["network_type"] = self.network_type
         for b in batch_size:
-            group = f.create_group(f"{gt['filename'][b]}")
-            group.attrs["filename"] = gt["filename"][b]
+            group = f.create_group(f"{id[b]}")
             group.create_dataset("camcs_per_point", data=camcs_per_point[b].detach().cpu().numpy(), compression="gzip")
-            group.create_dataset("joint_type", data=joint_type[b].detach().cpu().numpy(), compression="gzip")
             for k, v in pred.items():
                 # Save the pred
                 group.create_dataset(f"pred_{k}", v[b].detach().cpu().numpy(), compression="gzip")
+            for k, v in gt.items(): 
                 # Save the gt
                 group.create_dataset(f"gt_{k}", gt[k][b].detach().cpu().numpy(), compression="gzip")
             
