@@ -29,8 +29,8 @@ pip install scipy
 - train the model
 ```bash
 # Train the two models for SAPIEN drawer dataset
-python train.py network=ancsh_sapien test=False paths=shawn_lab network.max_epochs=100
-python train.py network=npcs_sapien test=False paths=shawn_lab network.max_epochs=100
+python train.py network=ancsh_sapien test=False paths=shawn_lab network.max_epochs=20000 model_frequency=2000
+python train.py network=npcs_sapien test=False paths=shawn_lab network.max_epochs=20000 model_frequency=2000
 # Inference on the trained models
 python train.py network=ancsh_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
 python train.py network=npcs_sapien test=True paths=shawn_lab inference_model=<PATH_TO_MODEL>
