@@ -34,7 +34,7 @@ class ANCSHTrainer:
 
         self.data_path = data_path
         self.train_loader = torch.utils.data.DataLoader(
-            ANCSHDataset(self.data_path["train"]),
+            ANCSHDataset(self.data_path["train"], num_points=self.cfg.network.num_points),
             batch_size=cfg.network.batch_size,
             shuffle=True,
             num_workers=cfg.network.num_workers,
