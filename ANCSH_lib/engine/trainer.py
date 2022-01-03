@@ -89,11 +89,15 @@ class ANCSHTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+            self.writer.add_scalar("lr", self.scheduler.get_last_lr()[0], epoch)
             self.scheduler.step()
             # Add the loss values into the tensorboard
             for k, v in epoch_loss.items():
                 epoch_loss[k] = v / step_num
-                self.writer.add_scalar(f"loss/{k}", epoch_loss[k], epoch)
+                if k == "total_loss":
+                    self.writer.add_scalar(f"{k}", epoch_loss[k], epoch)
+                else:
+                    self.writer.add_scalar(f"loss/{k}", epoch_loss[k], epoch)
 
             if not epoch == 0 and epoch % self.cfg.log_frequency == 0:
                 output_string = f"Epoch: {epoch}  "
