@@ -6,6 +6,7 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import os
 import h5py
+import logging
 
 def existDir(dir):
     if not os.path.exists(dir):
@@ -26,8 +27,9 @@ class ANCSHTrainer:
         self.max_epochs = cfg.network.max_epochs
         self.model = self.build_model()
         self.model.to(device)
+        self.log = logging.getLogger('Network')
 
-        print(f"Below is the network structure:\n {self.model}")
+        self.log.info(f"Below is the network structure:\n {self.model}")
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.network.lr, betas=(0.9, 0.99))
         self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
@@ -85,12 +87,19 @@ class ANCSHTrainer:
                 self.optimizer.step()
             self.scheduler.step()
             # Add the loss values into the tensorboard
-            for k,v  in epoch_loss:
-                self.writer.add_scalar(f"loss/{k}", v/step_num, epoch)
+            for k,v  in epoch_loss.items():
+                epoch_loss[k] = v/step_num
+                self.writer.add_scalar(f"loss/{k}", epoch_loss[k], epoch)
+
+            if not epoch == 0 and epoch % self.cfg.log_frequency == 0:
+                output_string = f"Epoch: {epoch}  "
+                for k, v in epoch_loss.items():
+                    output_string += f"{k}: {round(v, 5)}  "
+                self.log.info(output_string)
             
-            if epoch % self.cfg.model_frequncy == 0 or epoch == self.max_epochs - 1:
+            if not epoch == 0 and epoch % self.cfg.model_frequency == 0 or epoch == self.max_epochs - 1:
                 # Save the model 
-                existDir(f"{self.cfg.paths.project_paths}")
+                existDir(f"{self.cfg.paths.train.output_dir}")
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': self.model.state_dict(),
@@ -105,7 +114,7 @@ class ANCSHTrainer:
             )
         )
         # Load the model
-        print(f"Load model from {inference_model}")
+        self.log.info(f"Load model from {inference_model}")
         checkpoint = torch.load(inference_model, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
@@ -138,7 +147,7 @@ class ANCSHTrainer:
                 group.create_dataset(f"gt_{k}", gt[k][b].detach().cpu().numpy(), compression="gzip")
             
     def resume_train(self, model):
-        print(f"Load model from {model}")
+        self.log.info(f"Load model from {model}")
         # Load the model
         checkpoint = torch.load(model, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])

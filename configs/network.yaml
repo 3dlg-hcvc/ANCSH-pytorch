@@ -2,6 +2,7 @@ version: "v1.0"
 
 test: ???
 model_frequency: 5000
+log_frequency: 10
 inference_model: ???
 
 defaults:
