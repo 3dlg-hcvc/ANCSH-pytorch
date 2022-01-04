@@ -36,7 +36,7 @@ class ANCSHTrainer:
         self.optimizer = optim.Adam(
             self.model.parameters(), lr=cfg.network.lr, betas=(0.9, 0.99)
         )
-        self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
+        # self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
 
         self.data_path = data_path
         self.train_loader = torch.utils.data.DataLoader(
@@ -89,8 +89,9 @@ class ANCSHTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
-            self.writer.add_scalar("lr", self.scheduler.get_last_lr()[0], epoch)
-            self.scheduler.step()
+            self.writer.add_scalar("lr", self.optimizer.param_groups[0]["lr"], epoch)
+            # self.writer.add_scalar("lr", self.scheduler.get_last_lr()[0], epoch)
+            # self.scheduler.step()
             # Add the loss values into the tensorboard
             for k, v in epoch_loss.items():
                 epoch_loss[k] = v / step_num
