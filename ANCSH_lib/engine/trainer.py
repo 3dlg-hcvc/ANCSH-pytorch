@@ -39,14 +39,6 @@ class ANCSHTrainer:
         # self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.7)
 
         self.data_path = data_path
-        self.train_loader = torch.utils.data.DataLoader(
-            ANCSHDataset(
-                self.data_path["train"], num_points=self.cfg.network.num_points
-            ),
-            batch_size=cfg.network.batch_size,
-            shuffle=True,
-            num_workers=cfg.network.num_workers,
-        )
 
     def build_model(self):
         model = ANCSH(self.network_type, self.num_parts)
@@ -54,6 +46,14 @@ class ANCSHTrainer:
 
     def train(self):
         self.model.train()
+        self.train_loader = torch.utils.data.DataLoader(
+            ANCSHDataset(
+                self.data_path["train"], num_points=self.cfg.network.num_points
+            ),
+            batch_size=self.cfg.network.batch_size,
+            shuffle=True,
+            num_workers=self.cfg.network.num_workers,
+        )
         self.writer = SummaryWriter(self.cfg.paths.train.output_dir)
         for epoch in range(self.max_epochs):
             epoch_loss = None
