@@ -8,11 +8,9 @@ import os
 import h5py
 import logging
 
-
 def existDir(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
-
 
 class ANCSHTrainer:
     def __init__(self, cfg, data_path, network_type, num_parts, device=None):
@@ -46,19 +44,29 @@ class ANCSHTrainer:
 
     def train(self):
         self.model.train()
-        self.train_loader = torch.utils.data.DataLoader(
+        train_loader = torch.utils.data.DataLoader(
             ANCSHDataset(
                 self.data_path["train"], num_points=self.cfg.network.num_points
             ),
             batch_size=self.cfg.network.batch_size,
-            shuffle=True,
+            # shuffle=True,
+            num_workers=self.cfg.network.num_workers,
+        )
+        test_loader = torch.utils.data.DataLoader(
+            ANCSHDataset(
+                self.data_path["test"], num_points=self.cfg.network.num_points
+            ),
+            batch_size=self.cfg.network.batch_size,
+            shuffle=False,
             num_workers=self.cfg.network.num_workers,
         )
         self.writer = SummaryWriter(self.cfg.paths.train.output_dir)
+        best_model = None
+        best_result = None
         for epoch in range(self.max_epochs):
             epoch_loss = None
             step_num = 0
-            for camcs_per_point, gt_dict, id in self.train_loader:
+            for camcs_per_point, gt_dict, id in train_loader:
                 # Move the tensors to the device
                 camcs_per_point = camcs_per_point.to(self.device)
                 gt = {}
@@ -121,6 +129,53 @@ class ANCSHTrainer:
                     },
                     f"{self.cfg.paths.train.output_dir}/model_{epoch}.pth",
                 )
+                # test the model on the val set and write the results into tensorboard
+                self.model.eval()
+                with torch.no_grad():
+                    val_error = None
+                    step_num = 0
+                    for camcs_per_point, gt_dict, id in test_loader:
+                        # Move the tensors to the device
+                        camcs_per_point = camcs_per_point.to(self.device)
+                        gt = {}
+                        for k, v in gt_dict.items():
+                            gt[k] = v.to(self.device)
+
+                        pred = self.model(camcs_per_point)
+                        loss_dict = self.model.losses(pred, gt)
+                        loss_weight = self.cfg.network.loss_weight
+                        loss = torch.tensor(0.0, device=self.device)
+                        # use different loss weight to calculate the final loss
+                        for k, v in loss_dict.items():
+                            if k not in loss_weight:
+                                raise ValueError(f"No loss weight for {k}")
+                            loss += loss_weight[k] * v
+
+                        if val_error == None:
+                            val_error = loss_dict
+                            val_error["total_loss"] = loss
+                        else:
+                            for k, v in loss_dict.items():
+                                val_error[k] += v
+                            val_error["total_loss"] += loss
+                        step_num += 1
+                    # write the val_error into the tensorboard
+                    for k, v in val_error.items():
+                        val_error[k] = v / step_num
+                        self.writer.add_scalar(f"val_error/{k}", val_error[k], epoch)
+                self.model.train()
+
+                if best_model == None or val_error["total_loss"] < best_result:
+                    best_model = {
+                        "epoch": epoch,
+                        "model_state_dict": self.model.state_dict(),
+                        "optimizer_state_dict": self.optimizer.state_dict(),
+                    }
+                    best_result = val_error["total_loss"]
+        torch.save(
+            best_model,
+            f"{self.cfg.paths.train.output_dir}/model_best.pth",
+        )
         self.writer.close()
 
     def test(self, inference_model):
