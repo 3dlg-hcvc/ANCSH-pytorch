@@ -86,8 +86,8 @@ class ANCSHTrainer:
             'total_loss': AvgRecorder()
         }
 
-        if self.train_loader.sampler is not None:
-            self.train_loader.sampler.set_epoch(epoch)
+        # if self.train_loader.sampler is not None:
+        #     self.train_loader.sampler.set_epoch(epoch)
 
         for i, (camcs_per_point, gt_dict, id) in enumerate(self.train_loader):
             io_time.update(time() - end_time)
@@ -121,7 +121,7 @@ class ANCSHTrainer:
 
             # time and print
             current_iter = (epoch - 1) * len(self.train_loader) + i + 1
-            max_iter = self.cfg.max_epochs * len(self.train_loader)
+            max_iter = self.max_epochs * len(self.train_loader)
             remain_iter = max_iter - current_iter
 
             iter_time.update(time() - end_time)
@@ -200,7 +200,7 @@ class ANCSHTrainer:
 
     def train(self, start_epoch=0):
         self.model.train()
-        self.writer = SummaryWriter(self.cfg.paths.train.output_dir)
+        self.writer = SummaryWriter(self.cfg.paths.network.train.output_dir)
 
         io.ensure_dir_exists(self.cfg.paths.network.train.output_dir)
 

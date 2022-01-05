@@ -3,11 +3,11 @@ version: "v1.0"
 device: "cuda:0"
 
 eval_only: false
+random_seed: 42
 
 train:
   save_frequency: 500
   log_frequency: 10
-  random_seed: 42
 
 test:
   split: "val"

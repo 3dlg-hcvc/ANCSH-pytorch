@@ -21,15 +21,15 @@ class ANCSHDataset(Dataset):
         perm = np.random.permutation(ins["camcs_per_point"].shape[0])
 
         # Get the camcs_per_point
-        camcs_per_point = torch.tensor(ins["camcs_per_point"], dtype=torch.float32)[perm[:self.num_points]]
+        camcs_per_point = torch.tensor(ins["camcs_per_point"][:], dtype=torch.float32)[perm[:self.num_points]]
         # Get all other items 
         gt_dict = {}
         for k, v in ins.items():
             if k == "camcs_per_point":
                 continue
             elif "per_point" in k:
-                gt_dict[k] = torch.tensor(v, dtype=torch.float32)[perm[:self.num_points]]
+                gt_dict[k] = torch.tensor(v[:], dtype=torch.float32)[perm[:self.num_points]]
             else:
-                gt_dict[k] = torch.tensor(v, dtype=torch.float32)
+                gt_dict[k] = torch.tensor(v[:], dtype=torch.float32)
 
         return camcs_per_point, gt_dict, id
