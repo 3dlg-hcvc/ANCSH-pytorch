@@ -90,9 +90,6 @@ class PointNet2(nn.Module):
         l2_xyz, l2_features = self.sa_module_2(l1_xyz, l1_features)
         l3_xyz, l3_features = self.sa_module_3(l2_xyz, l2_features)
 
-        import pdb
-        pdb.set_trace()
-
         l2_features = self.fp_module_1(l2_xyz, l3_xyz, l2_features, l3_features)
         l1_features = self.fp_module_2(l1_xyz, l2_xyz, l1_features, l2_features)
         l0_features = self.fp_module_3(l0_xyz, l1_xyz, l0_features, l1_features)
