@@ -4,4 +4,3 @@ defaults:
 
 network_type: "ancsh"
 max_epochs: 250000
-num_parts: 4

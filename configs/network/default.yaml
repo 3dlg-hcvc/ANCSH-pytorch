@@ -1,6 +1,5 @@
 network_type: ???
 max_epochs: ???
-num_parts: ???
 lr: 0.001
 batch_size: 16
 num_workers: 4

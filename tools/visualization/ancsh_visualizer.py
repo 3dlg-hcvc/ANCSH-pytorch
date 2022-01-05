@@ -142,6 +142,7 @@ class ANCSHVisualizer:
             self.viz_joint_association(data_group, item_name)
             self.viz_point2joint_offset(data_group, item_name)
 
+
 @hydra.main(config_path="../../configs", config_name="preprocess")
 def main(cfg: DictConfig):
     prediction = False

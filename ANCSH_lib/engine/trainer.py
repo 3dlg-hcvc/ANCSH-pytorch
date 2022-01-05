@@ -1,25 +1,25 @@
-from torch.optim import optimizer
-from ANCSH_lib.model import ANCSH
-from ANCSH_lib.data import ANCSHDataset
-import torch
-import torch.optim as optim
-from torch.utils.tensorboard import SummaryWriter
 import os
 import h5py
 import logging
 
+import torch
+import torch.optim as optim
+from torch.optim import optimizer
+from torch.utils.tensorboard import SummaryWriter
 
-def existDir(dir):
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+from ANCSH_lib.model import ANCSH
+from ANCSH_lib.data import ANCSHDataset
+from tools.utils import io
 
 
 class ANCSHTrainer:
-    def __init__(self, cfg, data_path, network_type, num_parts, device=None):
+    def __init__(self, cfg, data_path, network_type, num_parts):
         self.cfg = cfg
         # data_path is a dictionary {'train', 'test'}
-        if device == None:
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        if cfg.device == "cuda:0" and torch.cuda.is_available():
+            device = torch.device("cuda:0")
+        else:
+            device = torch.device("cpu")
         self.device = device
 
         self.network_type = network_type
@@ -111,14 +111,15 @@ class ANCSHTrainer:
                 or epoch == self.max_epochs - 1
             ):
                 # Save the model
-                existDir(f"{self.cfg.paths.train.output_dir}")
+                io.ensure_dir_exists(self.cfg.paths.network.train.output_dir)
                 torch.save(
                     {
                         "epoch": epoch,
                         "model_state_dict": self.model.state_dict(),
                         "optimizer_state_dict": self.optimizer.state_dict(),
                     },
-                    f"{self.cfg.paths.train.output_dir}/model_{epoch}.pth",
+                    os.path.join(self.cfg.paths.network.train.output_dir,
+                                 self.cfg.paths.network.train.model_filename % epoch),
                 )
         self.writer.close()
 
@@ -152,8 +153,10 @@ class ANCSHTrainer:
     def save_results(self, pred, camcs_per_point, gt, id):
         # Save the results and gt into hdf5 for further optimization
         batch_size = pred["seg_per_point"].shape[0]
-        existDir(f"{self.cfg.paths.test.output_dir}")
-        f = h5py.File(f"{self.cfg.paths.test.output_dir}/pred_gt.h5", "w")
+        io.ensure_dir_exists(self.cfg.paths.network.test.output_dir)
+        inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
+                                      self.network_type + '_' + self.cfg.paths.network.test.inference_filename)
+        f = h5py.File(inference_path, "w")
         f.attrs["network_type"] = self.network_type
         for b in range(batch_size):
             group = f.create_group(f"{id[b]}")
@@ -173,10 +176,10 @@ class ANCSHTrainer:
                     f"gt_{k}", data=gt[k][b].detach().cpu().numpy(), compression="gzip"
                 )
 
-    def resume_train(self, model):
-        self.log.info(f"Load model from {model}")
+    def resume_train(self, model_path):
+        self.log.info(f"Load model from {model_path}")
         # Load the model
-        checkpoint = torch.load(model, map_location=self.device)
+        checkpoint = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         self.model.to(self.device)

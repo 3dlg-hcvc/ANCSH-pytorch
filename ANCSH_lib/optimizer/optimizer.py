@@ -1,11 +1,10 @@
+import os
 import h5py
+import numpy as np
 import multiprocessing
 
 from ANCSH_lib.optimizer.optimize_util import optimize_with_kinematic
-
-import numpy as np
-import os
-
+from tools.utils import io
 
 def h5_dict(ins):
     result = {}
@@ -14,17 +13,13 @@ def h5_dict(ins):
     return result
 
 
-def existDir(dir):
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-
-
 class ANCSHOptimizer:
     def __init__(self, cfg, ancsh_results_path, npcs_results_path):
         self.cfg = cfg
         self.f_ancsh = h5py.File(ancsh_results_path, "r")
         self.f_npcs = h5py.File(npcs_results_path, "r")
         self.instances = sorted(self.f_ancsh.keys())
+        self.results = None
 
     def optimize(self, process_num=4):
         pool = multiprocessing.Pool(processes=process_num)
@@ -82,8 +77,11 @@ class ANCSHOptimizer:
             f"The accuracy for rotation error < 5 degree and translation error < 5 cm is: {acc_err_rt}"
         )
 
-        existDir(self.cfg.paths.optimize.output_dir)
-        f = h5py.File(f"{self.cfg.paths.optimize.output_dir}/combined_result.h5", "w")
+        io.ensure_dir_exists(self.cfg.paths.optimization.output_dir)
+        f = h5py.File(
+            os.path.join(self.cfg.paths.optimization.output_dir, self.cfg.paths.optimization.optimization_result_path),
+            "w"
+        )
         # Record the errors
         f.attrs["err_pose_rotation"] = mean_err_rotation
         f.attrs["err_pose_translation"] = mean_err_translation
