@@ -2,5 +2,5 @@ defaults:
   - default
   - _self_ 
 
-network_type: "npcs"
+network_type: "NPCS"
 max_epochs: 260000

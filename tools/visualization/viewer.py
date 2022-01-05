@@ -128,7 +128,10 @@ class Viewer:
         for i, pos in enumerate(positions):
             transformation = trimesh.geometry.align_vectors(z_axis, axes[i])
             transformation[:3, 3] += pos
-            arrow = Viewer.draw_arrow(color, radius, length)
+            if isinstance(length, float):
+                arrow = Viewer.draw_arrow(color, radius, length)
+            else:
+                arrow = Viewer.draw_arrow(color, radius, length[i])
             arrow.apply_transform(transformation)
             arrows.append(arrow)
         self.trimesh_list += arrows

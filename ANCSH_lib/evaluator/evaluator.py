@@ -178,7 +178,7 @@ class ANCSHEvaluator:
                     ]
                     - 0.5
                 )
-                ## todo: Here their scale is not that proper
+                
                 pred_scale = 2 * np.max(abs(centered_npcs), axis=0)
                 pred_3dbbx = get_3d_bbox(pred_scale, np.array([0.5, 0.5, 0.5]))
 

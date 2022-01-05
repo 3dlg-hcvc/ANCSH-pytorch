@@ -6,7 +6,7 @@ num_workers: 4
 num_points: 1024
 
 # Loss weights
-loss_weight: 
+loss_weight:
   seg_loss: 1.0
   npcs_loss: 10.0
   naocs_loss: 1.0

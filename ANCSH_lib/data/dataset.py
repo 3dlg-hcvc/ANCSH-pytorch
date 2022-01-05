@@ -1,14 +1,15 @@
-from torch.utils.data import Dataset
 import h5py
-import torch
 import numpy as np
+import torch
+from torch.utils.data import Dataset
+
 
 class ANCSHDataset(Dataset):
     def __init__(self, data_path, num_points):
         self.f_data = h5py.File(data_path)
         self.instances = sorted(self.f_data)
         self.num_points = num_points
-    
+
     def __len__(self):
         return len(self.instances)
 
@@ -30,5 +31,5 @@ class ANCSHDataset(Dataset):
                 gt_dict[k] = torch.tensor(v, dtype=torch.float32)[perm[:self.num_points]]
             else:
                 gt_dict[k] = torch.tensor(v, dtype=torch.float32)
-        
-        return (camcs_per_point, gt_dict, id)
+
+        return camcs_per_point, gt_dict, id

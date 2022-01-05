@@ -2,9 +2,16 @@ version: "v1.0"
 
 device: "cuda:0"
 
-test: ???
-validation_frequency: 500
-log_frequency: 10
+eval_only: false
+
+train:
+  save_frequency: 500
+  log_frequency: 10
+  random_seed: 42
+
+test:
+  split: "val"
+
 
 defaults:
   - paths: ???
