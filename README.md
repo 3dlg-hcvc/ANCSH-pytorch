@@ -37,7 +37,7 @@ optional arguments:
 - network.lr=<LEARNING_RATE>
 ```
 - Evaluate the Networks
-```
+```bash
 python train.py network=ancsh eval_only=true inference_model=<PATH_TO_MODEL>
 python train.py network=npcs eval_only=true inference_model=<PATH_TO_MODEL>
 optional arguments:
@@ -47,12 +47,12 @@ optional arguments:
 - network.num_workers=<NUM_WORKERS>
 ```
 - Kinematic Constrained Optimization
-```
+```bash
 # Use kinematic constrained optimization to infer the pred part pose 
 python optimize.py optimization=sapien_urdf paths=shawn_lab ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
 ```
 - Evalaution
-```
+```bash
 # Do evalaution
 python evaluate.py evaluation=sapien_urdf paths=shawn_lab combined_result_path=<PATH_TO_COMBINED_REUSLTS>
 ```
