@@ -62,11 +62,11 @@ def main(cfg: DictConfig):
         log.info(f'Train on {train_path}, validate on {test_path}')
         trainer.train()
     else:
-        log.info(f'Test on {test_path} with inference model {cfg.inference_model}')
-        if io.file_exist(cfg.inference_model):
-            trainer.test(inference_model=cfg.inference_model)
+        log.info(f'Test on {test_path} with inference model {cfg.test.inference_model}')
+        if io.file_exist(cfg.test.inference_model):
+            trainer.test(inference_model=cfg.test.inference_model)
         else:
-            log.error(f'Cannot open inference model {cfg.inference_model}')
+            log.error(f'Cannot open inference model {cfg.test.inference_model}')
 
 
 if __name__ == "__main__":

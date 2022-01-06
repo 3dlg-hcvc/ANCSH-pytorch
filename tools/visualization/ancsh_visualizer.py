@@ -178,7 +178,7 @@ def main(cfg: DictConfig):
     npcs_input_h5 = h5py.File(npcs_path, 'r')
 
     visualizer = ANCSHVisualizer(npcs_input_h5, ancsh_input_h5, export=export_dir, gt=not prediction)
-    visualizer.render(show=True)
+    visualizer.render(show=False)
 
 
 if __name__ == "__main__":
