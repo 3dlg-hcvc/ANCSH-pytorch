@@ -46,6 +46,7 @@ class ANCSHTrainer:
         self.train_loader = None
         self.test_loader = None
         self.init_data_loader(self.cfg.eval_only)
+        self.test_result = None
 
     def build_model(self):
         model = ANCSH(self.network_type, self.num_parts)
@@ -154,10 +155,16 @@ class ANCSHTrainer:
         val_error = {
             'total_loss': AvgRecorder()
         }
+        if save_results:
+            io.ensure_dir_exists(self.cfg.paths.network.test.output_dir)
+            inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
+                                          self.network_type + '_' + self.cfg.paths.network.test.inference_filename)
+            self.test_result = h5py.File(inference_path, "w")
+            self.test_result.attrs["network_type"] = self.network_type
 
         # test the model on the val set and write the results into tensorboard
+        self.model.eval()
         with torch.no_grad():
-            self.model.eval()
             start_time = time()
             for i, (camcs_per_point, gt_dict, id) in enumerate(self.test_loader):
                 # Move the tensors to the device
@@ -196,6 +203,8 @@ class ANCSHTrainer:
         self.log.info(
             'Eval Epoch: {}/{} Loss: {} duration: {:.2f}'
                 .format(epoch, self.max_epochs, loss_log, time() - start_time))
+        if save_results:
+            self.test_result.close()
         return val_error
 
     def train(self, start_epoch=0):
@@ -245,20 +254,13 @@ class ANCSHTrainer:
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
 
-        with torch.no_grad():
-            self.model.eval()
-            self.eval_epoch(epoch, save_results=True)
+        self.eval_epoch(epoch, save_results=True)
 
     def save_results(self, pred, camcs_per_point, gt, id):
         # Save the results and gt into hdf5 for further optimization
         batch_size = pred["seg_per_point"].shape[0]
-        io.ensure_dir_exists(self.cfg.paths.network.test.output_dir)
-        inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
-                                      self.network_type + '_' + self.cfg.paths.network.test.inference_filename)
-        f = h5py.File(inference_path, "w")
-        f.attrs["network_type"] = self.network_type
         for b in range(batch_size):
-            group = f.create_group(f"{id[b]}")
+            group = self.test_result.create_group(f"{id[b]}")
             group.create_dataset(
                 "camcs_per_point",
                 data=camcs_per_point[b].detach().cpu().numpy(),
@@ -266,19 +268,19 @@ class ANCSHTrainer:
             )
 
             # save prediction results
-            raw_segmentations = pred['seg_per_point'].detach().cpu().numpy()
-            raw_npcs_points = pred['npcs_per_point'].detach().cpu().numpy()
+            raw_segmentations = pred['seg_per_point'][b].detach().cpu().numpy()
+            raw_npcs_points = pred['npcs_per_point'][b].detach().cpu().numpy()
             segmentations, npcs_points = utils.get_prediction_vertices(raw_segmentations, raw_npcs_points)
             group.create_dataset('pred_seg_per_point', data=segmentations, compression="gzip")
             group.create_dataset('pred_npcs_per_point', data=npcs_points, compression="gzip")
             if NetworkType[self.network_type] == NetworkType.ANCSH:
-                raw_naocs_points = pred['naocs_per_point'].detach().cpu().numpy()
+                raw_naocs_points = pred['naocs_per_point'][b].detach().cpu().numpy()
                 _, naocs_points = utils.get_prediction_vertices(raw_segmentations, raw_naocs_points)
-                raw_joint_associations = pred['joint_cls_per_point'].detach().cpu().numpy()
+                raw_joint_associations = pred['joint_cls_per_point'][b].detach().cpu().numpy()
                 joint_associations = np.argmax(raw_joint_associations, axis=1)
-                joint_axes = pred['axis_per_point'].detach().cpu().numpy()
-                point_heatmaps = pred['heatmap_per_point'].detach().cpu().numpy().flatten()
-                unit_vectors = pred['unitvec_per_point'].detach().cpu().numpy()
+                joint_axes = pred['axis_per_point'][b].detach().cpu().numpy()
+                point_heatmaps = pred['heatmap_per_point'][b].detach().cpu().numpy().flatten()
+                unit_vectors = pred['unitvec_per_point'][b].detach().cpu().numpy()
 
                 group.create_dataset('pred_naocs_per_point', data=naocs_points, compression="gzip")
                 group.create_dataset('pred_joint_cls_per_point', data=joint_associations, compression="gzip")
