@@ -7,7 +7,6 @@ from enum import Enum
 class NetworkType(Enum):
     ANCSH = 'ancsh'
     NPCS = 'npcs'
-    NAOCS = 'naocs'
 
 
 def set_random_seed(seed):
