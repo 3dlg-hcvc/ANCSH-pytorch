@@ -46,14 +46,21 @@ preprocess:
     val: "${paths.preprocess.output_dir}/${paths.preprocess.stage2.output.val_data}"
     test: "${paths.preprocess.output_dir}/${paths.preprocess.stage2.output.test_data}"
 
-train:
-  output_dir: "${paths.result_dir}/train_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
-
-test:
-  output_dir: "${paths.result_dir}/test_output/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+network:
+  output_dir: "${paths.result_dir}/network"
+  train:
+    output_dir: "${paths.network.output_dir}/train/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+    input_model: path
+    model_filename: "model_%09d.pth"
+    best_model_filename: "best_model.pth"
+  test:
+    output_dir: "${paths.network.output_dir}/test/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+    inference_result: "inference_result.h5"
     
-optimize:
-  output_dir: "${paths.result_dir}/optimize_output/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+optimization:
+  output_dir: "${paths.result_dir}/optimization/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+  optimization_result_path: "optimization_result.h5"
 
-evaluate:
-  output_dir: "${paths.result_dir}/evaluate_output/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+evaluation:
+  output_dir: "${paths.result_dir}/evaluation/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"
+  prediction_filename: "prediction.h5"

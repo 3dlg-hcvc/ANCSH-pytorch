@@ -2,6 +2,5 @@ defaults:
   - default
   - _self_ 
 
-network_type: "ancsh"
+network_type: "ANCSH"
 max_epochs: 250000
-num_parts: 4

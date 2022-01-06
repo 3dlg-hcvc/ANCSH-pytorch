@@ -1,13 +1,12 @@
 network_type: ???
 max_epochs: ???
-num_parts: ???
 lr: 0.001
 batch_size: 16
 num_workers: 4
 num_points: 1024
 
 # Loss weights
-loss_weight: 
+loss_weight:
   seg_loss: 1.0
   npcs_loss: 10.0
   naocs_loss: 1.0

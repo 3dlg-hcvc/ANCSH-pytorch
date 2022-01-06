@@ -1,10 +1,13 @@
-import h5py
-import numpy as np
-import itertools
 import os
+import h5py
+import itertools
+
+import numpy as np
+
+from tools.utils import io
 
 
-def get_3d_bbox(scale, shift=0):
+def get_3d_bbox(scale, shift=np.zeros(3)):
     """
     Input:
         scale: [3]
@@ -88,12 +91,6 @@ def dist_between_3d_lines(p1, e1, p2, e2):
     dist = product / np.linalg.norm(orth_vect)
 
     return np.abs(dist)
-
-def existDir(dir):
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-
-
 
 
 class ANCSHEvaluator:
@@ -345,9 +342,11 @@ class ANCSHEvaluator:
         print(f"Mean joint axis error in camera coordinate (degree): {mean_err_joint_axis}")
         print(f"Mean joint axis line distance in camera coordinate (m): {mean_err_joint_line}")
 
-        existDir(self.cfg.paths.evaluate.output_dir)
-
-        f = h5py.File(f"{self.cfg.paths.evaluate.output_dir}/final_results.h5", "w")
+        io.ensure_dir_exists(self.cfg.paths.evaluate.output_dir)
+        f = h5py.File(
+            os.path.join(self.cfg.paths.evaulation.output_dir, self.cfg.paths.evaulation.prediction_filename),
+            "w"
+        )
         for k, v in self.f_combined.attrs.items():
             f.attrs[k] = v
         f.attrs["err_pose_scale"] = mean_err_pose_scale

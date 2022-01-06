@@ -1,10 +1,17 @@
 version: "v1.0"
 
-test: ???
-model_frequency: 5000
-log_frequency: 10
-inference_model: ???
+device: "cuda:0"
+
+eval_only: false
 random_seed: 42
+
+train:
+  save_frequency: 500
+  log_frequency: 10
+
+test:
+  split: "val"
+
 
 defaults:
   - paths: ???
@@ -14,4 +21,4 @@ defaults:
 # hydra configuration log output dir
 hydra:
   run:
-    dir: "config_logs/network/${now:%Y-%m-%d}/${now:%H-%M-%S}"
+    dir: "${paths.network.output_dir}/logs/${now:%Y-%m-%d}/${now:%H-%M-%S}"
