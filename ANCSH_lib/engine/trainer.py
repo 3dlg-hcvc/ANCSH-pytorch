@@ -121,8 +121,8 @@ class ANCSHTrainer:
             self.optimizer.step()
 
             # time and print
-            current_iter = (epoch - 1) * len(self.train_loader) + i + 1
-            max_iter = self.max_epochs * len(self.train_loader)
+            current_iter = epoch * len(self.train_loader) + i + 1
+            max_iter = (self.max_epochs+1) * len(self.train_loader)
             remain_iter = max_iter - current_iter
 
             iter_time.update(time() - end_time)

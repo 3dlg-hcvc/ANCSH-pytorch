@@ -64,10 +64,10 @@ class ANCSHVisualizer:
     @staticmethod
     def get_prediction_vertices(pred_segmentation, pred_coordinates):
         segmentations = np.argmax(pred_segmentation, axis=1)
-        x = pred_coordinates[np.arange(pred_coordinates.shape[0]), segmentations]
-        y = pred_coordinates[np.arange(pred_coordinates.shape[0]), segmentations + 1]
-        z = pred_coordinates[np.arange(pred_coordinates.shape[0]), segmentations + 2]
-        return segmentations, np.column_stack((x, y, z))
+        coordinates = pred_coordinates[
+            np.arange(pred_coordinates.shape[0]).reshape(-1, 1),
+            np.arange(3) + 3 * np.tile(segmentations.reshape(-1, 1), [1, 3])]
+        return segmentations, coordinates
 
     def viz_npcs(self, data_group, data_name):
         suffix = '_npcs'
@@ -141,7 +141,7 @@ class ANCSHVisualizer:
         arrow_sample_indices[::2] = False
         arrow_length = (1 - point_heatmaps) * 0.2 + 10e-8
         viewer.add_trimesh_arrows(naocs_points[arrow_sample_indices], unit_vectors[arrow_sample_indices],
-                          color=[0, 0, 0, 0.6], radius=0.002, length=arrow_length)
+                                  color=[0, 0, 0, 0.6], radius=0.002, length=arrow_length)
         self.render_options(viewer, data_name + suffix)
         del viewer
 

@@ -25,10 +25,10 @@ def duration_in_hours(duration):
 
 def get_prediction_vertices(pred_segmentation, pred_coordinates):
     segmentations = np.argmax(pred_segmentation, axis=1)
-    x = pred_coordinates[np.arange(pred_coordinates.shape[0]), segmentations]
-    y = pred_coordinates[np.arange(pred_coordinates.shape[0]), segmentations + 1]
-    z = pred_coordinates[np.arange(pred_coordinates.shape[0]), segmentations + 2]
-    return segmentations, np.column_stack((x, y, z))
+    coordinates = pred_coordinates[
+        np.arange(pred_coordinates.shape[0]).reshape(-1, 1),
+        np.arange(3) + 3 * np.tile(segmentations.reshape(-1, 1), [1, 3])]
+    return segmentations, coordinates
 
 
 class AvgRecorder(object):
