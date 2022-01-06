@@ -38,8 +38,8 @@ optional arguments:
 ```
 - Evaluate the Networks
 ```bash
-python train.py network=ancsh eval_only=true inference_model=<PATH_TO_MODEL>
-python train.py network=npcs eval_only=true inference_model=<PATH_TO_MODEL>
+python train.py network=ancsh eval_only=true test.inference_model=<PATH_TO_MODEL>
+python train.py network=npcs eval_only=true test.inference_model=<PATH_TO_MODEL>
 optional arguments:
 - test.split=val (or test)
 - test.input_data=<PATH_TO_TRAIN_INPUT>
