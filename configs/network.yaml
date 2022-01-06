@@ -6,11 +6,15 @@ eval_only: false
 random_seed: 42
 
 train:
+  input_data: path
+  input_model: path
   save_frequency: 500
   log_frequency: 10
 
 test:
   split: "val"
+  input_data: path
+  inference_model: path
 
 
 defaults:

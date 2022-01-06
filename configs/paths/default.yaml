@@ -1,7 +1,7 @@
 version: "1.0"
 
 dataset_dir: ??? # path to datasets folder
-result_dir: ??? # path to result folder
+result_dir: results # path to result folder
 
 preprocess:
   input_dir: "${paths.dataset_dir}"
@@ -50,7 +50,6 @@ network:
   output_dir: "${paths.result_dir}/network"
   train:
     output_dir: "${paths.network.output_dir}/train/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
-    input_model: path
     model_filename: "model_%09d.pth"
     best_model_filename: "best_model.pth"
   test:
