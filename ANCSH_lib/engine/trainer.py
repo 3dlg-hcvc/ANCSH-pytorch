@@ -158,7 +158,7 @@ class ANCSHTrainer:
         if save_results:
             io.ensure_dir_exists(self.cfg.paths.network.test.output_dir)
             inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
-                                          self.network_type + '_' + self.cfg.paths.network.test.inference_filename)
+                                          self.network_type + '_' + self.cfg.paths.network.test.inference_result)
             self.test_result = h5py.File(inference_path, "w")
             self.test_result.attrs["network_type"] = self.network_type
 
@@ -239,11 +239,11 @@ class ANCSHTrainer:
                         "optimizer_state_dict": self.optimizer.state_dict(),
                     }
                     best_result = val_error["total_loss"].avg
-        torch.save(
-            best_model,
-            os.path.join(self.cfg.paths.network.train.output_dir,
-                         self.cfg.paths.network.train.best_model_filename)
-        )
+                    torch.save(
+                        best_model,
+                        os.path.join(self.cfg.paths.network.train.output_dir,
+                                     self.cfg.paths.network.train.best_model_filename)
+                    )
         self.writer.close()
 
     def test(self, inference_model):
