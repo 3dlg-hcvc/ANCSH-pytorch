@@ -6,15 +6,19 @@ eval_only: false
 random_seed: 42
 
 train:
+  input_data: path
+  input_model: path
   save_frequency: 500
   log_frequency: 10
 
 test:
   split: "val"
+  input_data: path
+  inference_model: path
 
 
 defaults:
-  - paths: ???
+  - paths: default
   - network: ???
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 

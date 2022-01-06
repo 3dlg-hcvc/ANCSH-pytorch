@@ -35,8 +35,9 @@ def get_num_parts(h5_file_path):
 def main(cfg: DictConfig):
     OmegaConf.update(cfg, "paths.result_dir", io.to_abs_path(cfg.paths.result_dir, get_original_cwd()))
 
-    train_path = cfg.paths.preprocess.output.train
+    train_path = cfg.train.input_data if io.file_exist(cfg.train.input_data) else cfg.paths.preprocess.output.train
     test_path = cfg.paths.preprocess.output.val if cfg.test.split == 'val' else cfg.paths.preprocess.output.test
+    test_path = cfg.test.input_data if io.file_exist(cfg.test.input_data) else test_path
     data_path = {"train": train_path, "test": test_path}
 
     num_parts = get_num_parts(train_path)
@@ -61,8 +62,11 @@ def main(cfg: DictConfig):
         log.info(f'Train on {train_path}, validate on {test_path}')
         trainer.train()
     else:
-        log.info(f'Test on {test_path}')
-        trainer.test(inference_model=cfg.inference_model)
+        log.info(f'Test on {test_path} with inference model {cfg.inference_model}')
+        if io.file_exist(cfg.inference_model):
+            trainer.test(inference_model=cfg.inference_model)
+        else:
+            log.error(f'Cannot open inference model {cfg.inference_model}')
 
 
 if __name__ == "__main__":
