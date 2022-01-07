@@ -32,6 +32,8 @@ class Viewer:
         if vertices is not None:
             self.add_geometry(vertices, faces, colors, mask)
 
+    head_body_ratio = 1.0 / 4
+
     @staticmethod
     def rgba_by_index(index, cmap_name='Set1'):
         return list(cm.get_cmap(cmap_name)(index))
@@ -103,10 +105,12 @@ class Viewer:
     def draw_arrow(color=None, radius=0.01, length=0.5):
         if color is None:
             color = Viewer.rgba_by_index(0)
+        head_length = length * Viewer.head_body_ratio
+        body_length = length - head_length
         head_transformation = np.eye(4)
-        head_transformation[:3, 3] += [0, 0, length / 2.0]
-        head = trimesh.creation.cone(3 * radius, length / 4.0, sections=10, transform=head_transformation)
-        body = trimesh.creation.cylinder(radius, length, sections=10)
+        head_transformation[:3, 3] += [0, 0, body_length / 2.0]
+        head = trimesh.creation.cone(3 * radius, head_length, sections=10, transform=head_transformation)
+        body = trimesh.creation.cylinder(radius, body_length, sections=10)
         arrow = head + body
         arrow.visual.vertex_colors = color
         return arrow
@@ -116,7 +120,7 @@ class Viewer:
         z_axis = [0, 0, 1]
         for i, pos in enumerate(positions):
             transformation = trimesh.geometry.align_vectors(z_axis, axes[i])
-            transformation[:3, 3] += pos
+            transformation[:3, 3] += pos + axes[i] * (1 - Viewer.head_body_ratio) / 2 * length
             transformations.append(transformation)
         arrow = Viewer.draw_arrow(color, radius, length)
         arrows = pyrender.Mesh.from_trimesh(arrow, poses=transformations)
@@ -127,7 +131,7 @@ class Viewer:
         z_axis = [0, 0, 1]
         for i, pos in enumerate(positions):
             transformation = trimesh.geometry.align_vectors(z_axis, axes[i])
-            transformation[:3, 3] += pos
+            transformation[:3, 3] += pos + axes[i] * (1 - Viewer.head_body_ratio) / 2 * length[i]
             if isinstance(length, float):
                 arrow = Viewer.draw_arrow(color, radius, length)
             else:
@@ -155,7 +159,7 @@ class Viewer:
         self._add_geometries_to_scenen()
         if window_size is None:
             window_size = [800, 600]
-        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=5.0)
+        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=8.0)
 
     def _compute_initial_camera_pose(self):
         centroid = self.scene.centroid
@@ -181,7 +185,7 @@ class Viewer:
 
         if fig_size is None:
             fig_size = [1024, 768]
-        renderer = pyrender.OffscreenRenderer(viewport_width=fig_size[0], viewport_height=fig_size[1], point_size=5.0)
+        renderer = pyrender.OffscreenRenderer(viewport_width=fig_size[0], viewport_height=fig_size[1], point_size=10.0)
         z_far = max(self.scene.scale * 10.0, DEFAULT_Z_FAR)
         if self.scene.scale == 0:
             z_near = DEFAULT_Z_NEAR
@@ -202,6 +206,8 @@ class Viewer:
     def export(self, mesh_path):
         if self.trimesh is None or self.point_cloud is None:
             self._merge_geometries()
-        mesh = trimesh.base.Trimesh(self.point_cloud.vertices, colors=self.point_cloud.colors)
-        mesh = trimesh.util.concatenate(self.trimesh, mesh)
+        if self.point_cloud is not None:
+            mesh = trimesh.base.Trimesh(self.point_cloud.vertices, vertex_colors=self.point_cloud.colors)
+        if self.trimesh is not None and self.point_cloud is not None:
+            mesh = trimesh.util.concatenate(self.trimesh, mesh)
         mesh.export(mesh_path)

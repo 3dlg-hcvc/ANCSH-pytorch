@@ -5,8 +5,8 @@ from enum import Enum
 
 
 class NetworkType(Enum):
-    ANCSH = 'ancsh'
-    NPCS = 'npcs'
+    ANCSH = 'ANCSH'
+    NPCS = 'NPCS'
 
 
 def set_random_seed(seed):
