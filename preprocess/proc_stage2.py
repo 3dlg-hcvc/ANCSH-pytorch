@@ -6,6 +6,9 @@ import logging
 import numpy as np
 
 from tools.utils import io
+from ANCSH_lib.utils import NetworkType
+from tools.visualization import Viewer, ANCSHVisualizer
+
 import utils
 from utils import JointType
 
@@ -89,7 +92,7 @@ class ProcStage2:
             vec1 = vertices - joint_pos
             # project to joint axis
             proj_len = np.dot(vec1, joint_axis)
-            np.clip(proj_len, a_min=self.epsilon, a_max=None, out=proj_len)
+            # np.clip(proj_len, a_min=self.epsilon, a_max=None, out=proj_len)
             proj_vec = proj_len * joint_axis.transpose()
             orthogonal_vec = - vec1 + proj_vec
             tmp_heatmap = np.linalg.norm(orthogonal_vec, axis=1).reshape(-1, 1)
@@ -228,9 +231,20 @@ class ProcStage2:
                 naocs_joints[i]['type'] = joint_type
 
                 if self.debug:
-                    naocs_arrow = utils.draw_arrow(naocs_joint_pos, joint_axis,
-                                                   color=utils.rgba_by_index(joint_class))
+                    naocs_arrow = Viewer.draw_arrow(color=utils.rgba_by_index(joint_class), radius=0.01, length=0.3)
+                    z_axis = [0, 0, 1]
+                    transformation = trimesh.geometry.align_vectors(z_axis, joint_axis)
+                    transformation[:3, 3] += naocs_joint_pos + joint_axis * (1 - Viewer.head_body_ratio) / 2
+                    naocs_arrow.apply_transform(transformation)
                     naocs_arrows.append(naocs_arrow)
+
+            if self.debug:
+                tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'],
+                                            row['objectId'], self.tmp_output.folder_name)
+                io.ensure_dir_exists(tmp_data_dir)
+                naocs_arrows_mesh = trimesh.util.concatenate(naocs_arrows)
+                naocs_arrows_mesh.export(os.path.join(tmp_data_dir, self.tmp_output.arrows_naocs %
+                                                      (int(row["articulationId"]), int(row["frameId"]))))
 
             valid_joints = [joint for joint in naocs_joints if joint if joint['type'] >= 0]
             num_valid_joints = len(valid_joints)
@@ -269,40 +283,6 @@ class ProcStage2:
                     joint_types[joint['class']] = joint['type']
 
             instance_name = f'{row["objectCat"]}_{row["objectId"]}_{row["articulationId"]}_{row["frameId"]}'
-            if self.debug:
-                tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'],
-                                            row['objectId'], self.tmp_output.folder_name)
-                io.ensure_dir_exists(tmp_data_dir)
-
-                window_name_prefix = instance_name
-                utils.visualize_point_cloud(points_camera, points_class,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_camera %
-                                                                (int(row["articulationId"]), int(row["frameId"]))),
-                                            window_name=window_name_prefix + 'Camera Space', show=self.show)
-                utils.visualize_point_cloud(npcs, points_class,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_npcs %
-                                                                (int(row["articulationId"]), int(row["frameId"]))),
-                                            window_name=window_name_prefix + 'NPCS Space', show=self.show)
-                utils.visualize_point_cloud(naocs, points_class,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_naocs %
-                                                                (int(row["articulationId"]), int(row["frameId"]))),
-                                            window_name=window_name_prefix + 'NAOCS Space', show=self.show)
-                utils.verify_npcs2camera(npcs, points_class, parts_npcs2cam_transformation, parts_npcs2cam_scale,
-                                         export=os.path.join(tmp_data_dir, self.tmp_output.pcd_npcs2camera %
-                                                             (int(row["articulationId"]), int(row["frameId"]))),
-                                         window_name=window_name_prefix + 'NPCS to Camera', show=self.show)
-                naocs_arrows_mesh = trimesh.util.concatenate(naocs_arrows)
-                naocs_arrows_mesh.export(os.path.join(tmp_data_dir, self.tmp_output.arrows_naocs %
-                                                      (int(row["articulationId"]), int(row["frameId"]))))
-                utils.visualize_heatmap_unitvec(naocs, points_heatmap_result, points_unitvec,
-                                                export=os.path.join(tmp_data_dir, self.tmp_output.pcd_heatmap_unitvec %
-                                                                    (int(row["articulationId"]), int(row["frameId"]))),
-                                                window_name=window_name_prefix + 'Heatmap and unitvec', show=self.show)
-                utils.visualize_joints_axis(naocs, joints_association, joints_axis,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_joints_axis %
-                                                                (int(row["articulationId"]), int(row["frameId"]))),
-                                            window_name=window_name_prefix + 'Joints axis and association',
-                                            show=self.show)
 
             h5frame = h5file.require_group(instance_name)
             h5frame.attrs['objectCat'] = row["objectCat"]
@@ -341,5 +321,13 @@ class ProcStage2:
             norm_corners = np.stack((parts_min_bounds, parts_max_bounds), axis=1)
             h5frame.create_dataset("norm_corners", shape=norm_corners.shape, data=norm_corners,
                                    compression="gzip")
+
+        if self.debug:
+            tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+            io.ensure_dir_exists(tmp_data_dir)
+
+            visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
+            visualizer.prefix = ''
+            visualizer.render(show=self.show, export=tmp_data_dir)
 
         h5file.close()
