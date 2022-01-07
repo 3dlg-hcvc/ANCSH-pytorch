@@ -24,6 +24,17 @@ pip install "git+git://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet
 ```
 
 ## Running Experiments
+- Preprocess
+```bash
+cd preprocess
+python preprocess.py paths.dataset_dir=<PATH_TO_SELECTED_DATASET_FOLDER> dataset=<SELECTED_DATASET>
+optional arguments:
+settings.categories=<LIST_OF_CATEGORIES>
+settings.object_ids=<LIST_OF_OBJECT_IDS>
+settings.articulation_ids=<LIST_OF_ARTICULATION_IDS>
+debug=true (or false) # offscreen rendering and mesh exportation
+show=true (or false) # onscreen viewer to show the preprocessing results
+```
 - Train the Networks
 ```bash
 # Train ANCSH model
