@@ -4,6 +4,7 @@ import pandas as pd
 import trimesh
 import logging
 import numpy as np
+from progress.bar import Bar
 
 from tools.utils import io
 from ANCSH_lib.utils import NetworkType
@@ -41,11 +42,11 @@ class ProcStage2:
             .drop_duplicates(ignore_index=True)
         # select data in config
         selected_categories = df_dataset['objectCat'].isin(self.cfg.settings.categories) \
-            if len(self.cfg.settings.categories) > 0 else df_dataset['objectCat']
+            if len(self.cfg.settings.categories) > 0 else df_dataset['objectCat'].astype(bool)
         selected_object_ids = df_dataset['objectId'].isin(self.cfg.settings.object_ids) \
-            if len(self.cfg.settings.object_ids) > 0 else df_dataset['objectId']
+            if len(self.cfg.settings.object_ids) > 0 else df_dataset['objectId'].astype(bool)
         selected_articulation_ids = df_dataset['articulationId'].isin(self.cfg.settings.articulation_ids) \
-            if len(self.cfg.settings.articulation_ids) > 0 else df_dataset['articulationId']
+            if len(self.cfg.settings.articulation_ids) > 0 else df_dataset['articulationId'].astype(bool)
         df_dataset = df_dataset[selected_categories & selected_object_ids & selected_articulation_ids]
 
         if io.file_exist(self.cfg.paths.preprocess.stage2.input.split_info, ext='.csv'):
@@ -72,12 +73,15 @@ class ProcStage2:
             log.error('No data to process!')
             return
         train = self.split_info.loc['train']
+        log.info(f'Stage2 Process Train Set {len(train)} instances')
         self.process_each(train,
                           os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.train_data))
         val = self.split_info.loc['val']
+        log.info(f'Stage2 Process Val Set {len(val)} instances')
         self.process_each(val,
                           os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.val_data))
         test = self.split_info.loc['test']
+        log.info(f'Stage2 Process Test Set {len(test)} instances')
         self.process_each(test,
                           os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data))
 
@@ -112,6 +116,7 @@ class ProcStage2:
         # process object info
         object_df = data_info[['objectCat', 'objectId']].drop_duplicates()
         object_infos = {}
+        log.info('Stage2 Parse Object Infos')
         for index, row in object_df.iterrows():
             stage1_tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'], row['objectId'],
                                                self.stag1_tmp_output.folder_name)
@@ -141,6 +146,7 @@ class ProcStage2:
                 object_infos[row['objectCat']] = {row['objectId']: {'object': object_dict, 'part': part_dict}}
 
         h5file = h5py.File(output_path, 'w')
+        bar = Bar('Stage2 Processing', max=len(data_info))
         for index, row in data_info.iterrows():
             h5frame = self.input_h5[row['objectCat']][row['objectId']][row['articulationId']][row['frameId']]
             mask = h5frame['mask'][:]
@@ -321,6 +327,8 @@ class ProcStage2:
             norm_corners = np.stack((parts_min_bounds, parts_max_bounds), axis=1)
             h5frame.create_dataset("norm_corners", shape=norm_corners.shape, data=norm_corners,
                                    compression="gzip")
+            bar.next()
+        bar.finish()
 
         if self.debug:
             tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
