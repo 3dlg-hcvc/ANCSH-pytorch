@@ -202,16 +202,16 @@ class ANCSHEvaluator:
                     )
                 )
                 # todo: whethere to take if it's smaller than 1, then it needs to consider the ratio
-                ratio_pose_olume = pred_scale[0] * pred_scale[1] * pred_scale[2] * pred_npcs_scale[partIndex] / (
-                        gt_scale[0] * gt_scale[1] * gt_scale[2] * gt_npcs_scale[partIndex]
+                ratio_pose_volume = pred_scale[0] * pred_scale[1] * pred_scale[2] * pred_npcs_scale[partIndex]**3 / (
+                        gt_scale[0] * gt_scale[1] * gt_scale[2] * gt_npcs_scale[partIndex]**3
                     )
-                if ratio_pose_olume > 1:
+                if ratio_pose_volume > 1:
                     result["err_pose_volume"].append(
-                        ratio_pose_olume - 1
+                        ratio_pose_volume - 1
                     )
                 else:
                     result["err_pose_volume"].append(
-                        1 / ratio_pose_olume - 1
+                        1 / ratio_pose_volume - 1
                     )
 
                 # Calcualte the mean relative error for the parts
