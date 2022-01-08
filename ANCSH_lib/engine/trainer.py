@@ -59,7 +59,7 @@ class ANCSHTrainer:
                     self.data_path["train"], num_points=self.cfg.network.num_points
                 ),
                 batch_size=self.cfg.network.batch_size,
-                # shuffle=True,
+                shuffle=True,
                 num_workers=self.cfg.network.num_workers,
             )
 
@@ -91,6 +91,8 @@ class ANCSHTrainer:
         #     self.train_loader.sampler.set_epoch(epoch)
 
         for i, (camcs_per_point, gt_dict, id) in enumerate(self.train_loader):
+            import pdb
+            pdb.set_trace()
             io_time.update(time() - end_time)
             # Move the tensors to the device
             camcs_per_point = camcs_per_point.to(self.device)

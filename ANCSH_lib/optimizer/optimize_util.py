@@ -2,6 +2,14 @@ import numpy as np
 from scipy.spatial.transform import Rotation as srot
 from scipy.optimize import least_squares
 
+# Checks if a matrix is a valid rotation matrix.
+def isRotationMatrix(R):
+    Rt = np.transpose(R)
+    shouldBeIdentity = np.dot(Rt, R)
+    I = np.identity(3, dtype=R.dtype)
+    n = np.linalg.norm(I - shouldBeIdentity)
+    return n < 1e-6
+
 def ransac(dataset, model_estimator, model_verifier, inlier_th, niter, joint_type):
     best_model = None
     best_score = -np.inf
@@ -58,7 +66,6 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
 
     rotvec0 = srot.from_matrix(R0).as_rotvec()
     rotvec1 = srot.from_matrix(R1).as_rotvec()
-    # print('initialize rotvec0 vs rotvec1: \n', rotvec0, rotvec1)
     if joint_type == 0:
         # 0 represents primatic
         # res = least_squares(
@@ -253,7 +260,8 @@ def rot_diff_degree(rot1, rot2):
     return rot_diff_rad(rot1, rot2) / np.pi * 180
 
 def rot_diff_rad(rot1, rot2):
-    return np.arccos( ( np.trace(np.matmul(rot1, rot2.T)) - 1 ) / 2 ) % (2*np.pi)
+    theta = np.clip(( np.trace(np.matmul(rot1, rot2.T)) - 1 ) / 2, a_min=-1.0, a_max=1.0)
+    return np.arccos( theta ) % (2*np.pi)
 
 def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold):
     camcs_per_point = ins_ancsh["camcs_per_point"]
@@ -261,10 +269,13 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
     # Get the predicted segmentation and npcs from the NPCS model results
     pred_npcs_per_point = ins_npcs["pred_npcs_per_point"]
     pred_seg_per_point = ins_npcs["pred_seg_per_point"]
-    part_per_point = np.argmax(pred_seg_per_point, axis=1)
+    # pred_npcs_per_point = ins_npcs["gt_npcs_per_point"]
+    # pred_seg_per_point = ins_npcs["gt_seg_per_point"]
     # Get the joint prediction from ANCSH model results
     pred_joint_cls_per_point = ins_ancsh["pred_joint_cls_per_point"]
     pred_axis_per_point = ins_ancsh["pred_axis_per_point"]
+    # pred_joint_cls_per_point = ins_ancsh["gt_joint_cls_per_point"]
+    # pred_axis_per_point = ins_ancsh["gt_axis_per_point"]
     # Get the gt pose for npcs2cam
     gt_rt = ins_ancsh["gt_npcs2cam_rt"]
     gt_scale = ins_ancsh["gt_npcs2cam_scale"]
@@ -272,7 +283,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
     # Get the point mask
     partIndex = []
     for i in range(num_parts):
-        partIndex.append(np.where(part_per_point == i)[0])
+        partIndex.append(np.where(pred_seg_per_point == i)[0])
 
     jointIndex = []
     # Joint 0 means there is no joint association
@@ -290,11 +301,11 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         # Calculate the part pose for each moving part (from NPCS to camera)
         data = dict()
         # Get the npcs and camera coordinate of the base part
-        data["source0"] = pred_npcs_per_point[partIndex[0], :3]
+        data["source0"] = pred_npcs_per_point[partIndex[0]]
         data["target0"] = camcs_per_point[partIndex[0]]
         data["nsource0"] = data["source0"].shape[0]
         # Get the npcs and camera coordinate of the moving part
-        data["source1"] = pred_npcs_per_point[partIndex[i], 3 * i : 3 * (i + 1)]
+        data["source1"] = pred_npcs_per_point[partIndex[i]]
         data["target1"] = camcs_per_point[partIndex[i]]
         data["nsource1"] = data["source1"].shape[0]
         # Get the constrained joint info
@@ -313,6 +324,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
 
         if i == 1:
             # Record the pred things and error for base part
+            assert isRotationMatrix(best_model["rotation0"])
             rdiff = rot_diff_degree(best_model["rotation0"], (gt_rt[0]).reshape((4, 4), order='F')[:3, :3])
             tdiff = np.linalg.norm(best_model["translation0"] - (gt_rt[0]).reshape((4, 4), order='F')[:3, 3])
             sdiff = np.linalg.norm(best_model["scale0"] - gt_scale[0])
