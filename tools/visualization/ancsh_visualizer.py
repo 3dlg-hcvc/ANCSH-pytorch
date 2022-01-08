@@ -143,21 +143,119 @@ class ANCSHVisualizer:
                 self.viz_point2joint_offset(data_group, item_name)
 
 
+class OptimizerVisualizer:
+    def __init__(self, data: h5py.File):
+        self.data = data
+        self.export_dir = None
+        if self.export_dir is not None:
+            io.ensure_dir_exists(self.export_dir)
+        self.items = []
+        self.show_flag = False
+        self.render_flag = False
+        self.export_flag = False
+
+        self.width = 1024
+        self.height = 768
+        self.fig_ext = '.png'
+        self.mesh_ext = '.ply'
+
+    def parse_items(self):
+        visit_groups = lambda name, node: self.items.append(name) if isinstance(node, h5py.Group) else None
+        self.data.visititems(visit_groups)
+
+    def render_options(self, viewer, name):
+        if self.show_flag:
+            viewer.show(window_size=[self.width, self.height], window_name=name)
+        if self.render_flag and self.export_dir:
+            io.ensure_dir_exists(self.export_dir)
+            viewer.render(fig_path=os.path.join(self.export_dir, name + '_' + 'optimization' + self.fig_ext),
+                          fig_size=[self.width, self.height])
+        if self.export_flag and self.export_dir:
+            io.ensure_dir_exists(self.export_dir)
+            viewer.export(mesh_path=os.path.join(self.export_dir, name + '_' + 'optimization' + self.mesh_ext))
+
+    def viz_npcs2cam(self, data_group, data_name):
+        log.info('gt_npcs2cam_rt')
+        log.info(data_group['gt_npcs2cam_rt'][:])
+        log.info('pred_npcs2cam_rt')
+        log.info(data_group['pred_npcs2cam_rt'][:])
+        suffix = '_npcs2cam'
+        segmentations = data_group['pred_seg_per_point'][:]
+        npcs_points = data_group['pred_npcs_per_point'][:]
+        npcs2cam_rt = data_group['gt_npcs2cam_rt'][:]
+        npcs2cam_scale = data_group['pred_npcs2cam_scale'][:]
+        camera_points = data_group['camcs_per_point'][:]
+        npcs2cam_points = np.empty_like(npcs_points)
+        for k in range(npcs2cam_rt.shape[0]):
+            rt = npcs2cam_rt[k].reshape((4,4), order='F')
+            if k == 1:
+                rt[:, 3] = 0
+            scale = npcs2cam_scale[k]
+            npcs2cam_points_part = npcs_points[segmentations == k] * scale
+            npcs2cam_points_part_p4 = np.hstack((npcs2cam_points_part, np.ones((npcs2cam_points_part.shape[0], 1))))
+            npcs2cam_points_part = np.dot(npcs2cam_points_part_p4, rt.T)[:, :3]
+            npcs2cam_points[segmentations == k] = npcs2cam_points_part
+
+        distance = np.linalg.norm(npcs2cam_points - camera_points, axis=1)
+        max_val = np.amax(distance)
+        cmap = cm.get_cmap('jet')
+        colors = cmap(distance / max_val)
+        caption = {
+            'err_rotation': data_group['err_rotation'][:],
+            'err_translation': data_group['err_translation'][:],
+            'err_scale': data_group['err_scale'][:]
+        }
+        viewer = Viewer(camera_points, mask=segmentations)
+        # arrow = viewer.draw_arrow()
+        # arrow.apply_transform(npcs2cam_rt)
+        self.render_options(viewer, data_name + 'camera_points')
+        viewer.reset()
+        viewer.add_geometry(npcs2cam_points, mask=segmentations)
+        self.render_options(viewer, data_name + suffix)
+        viewer.reset()
+        viewer.add_geometry(npcs2cam_points, colors=colors)
+        log.info(caption)
+        self.render_options(viewer, data_name + 'difference')
+
+    def render(self, show=False, export=None):
+        self.show_flag = show
+        if self.show_flag:
+            self.render_flag = False
+        else:
+            self.render_flag = True
+        self.export_flag = False if export is None else True
+        self.export_dir = export
+
+        self.parse_items()
+        log.info(f'Rendering instances {self.items}')
+        for i, item_name in enumerate(self.items):
+            data_group = self.data[item_name]
+            # print(data_group.keys())
+            self.viz_npcs2cam(data_group, item_name)
+
+
+
 @hydra.main(config_path="../../configs", config_name="preprocess")
 def main(cfg: DictConfig):
-    prediction = False
-    ancsh_path = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/network/test/ANCSH_2022-01-05_23-36-49/ANCSH_inference_result.h5'
-    npcs_path = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/network/test/NPCS_2022-01-05_23-30-33/NPCS_inference_result.h5'
+    prediction = True
+    ancsh_path = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/network/test/ANCSH_2022-01-07_00-33-40/ANCSH_inference_result.h5'
+    npcs_path = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/network/test/NPCS_2022-01-07_00-34-24/NPCS_inference_result.h5'
+    optimize_path = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/optimization_result.h5'
     if prediction:
         export_dir = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/visualization/pred'
     else:
         export_dir = '/home/sam/Development/Research/ancsh/ANCSH-pytorch/results/visualization/gt'
     ancsh_input_h5 = h5py.File(ancsh_path, 'r')
-    # npcs_input_h5 = h5py.File(npcs_path, 'r')
+    npcs_input_h5 = h5py.File(npcs_path, 'r')
+    optimize_input_h5 = h5py.File(optimize_path, 'r')
 
-    visualizer = ANCSHVisualizer(ancsh_input_h5, NetworkType.ANCSH, gt=not prediction)
+    visualizer = OptimizerVisualizer(optimize_input_h5)
+    visualizer.render(show=False, export=export_dir)
+
     # visualizer = ANCSHVisualizer(npcs_input_h5, NetworkType.NPCS, gt=not prediction)
-    visualizer.render(show=True, export=export_dir)
+    # visualizer.render(show=True, export=export_dir)
+    # visualizer = ANCSHVisualizer(ancsh_input_h5, NetworkType.ANCSH, gt=not prediction)
+    # visualizer.render(show=True, export=export_dir)
 
 
 if __name__ == "__main__":

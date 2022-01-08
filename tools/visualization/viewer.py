@@ -31,8 +31,24 @@ class Viewer:
         self.scene.ambient_light = [1.0, 1.0, 1.0]
         if vertices is not None:
             self.add_geometry(vertices, faces, colors, mask)
+        self.caption = None
 
     head_body_ratio = 1.0 / 4
+
+    def reset(self):
+        self.vertices = None
+        self.faces = None
+        self.colors = None
+        self.mask = None
+        self.trimesh = None
+        self.point_cloud = None
+        self.trimesh_list = []
+        self.point_cloud_list = []
+        self.scene = pyrender.Scene()
+        self.scene.ambient_light = [1.0, 1.0, 1.0]
+
+    def add_caption(self, caption):
+        self.caption = caption
 
     @staticmethod
     def rgba_by_index(index, cmap_name='Set1'):
@@ -159,7 +175,8 @@ class Viewer:
         self._add_geometries_to_scenen()
         if window_size is None:
             window_size = [800, 600]
-        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=8.0)
+        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=8.0,
+                        caption=self.caption)
 
     def _compute_initial_camera_pose(self):
         centroid = self.scene.centroid

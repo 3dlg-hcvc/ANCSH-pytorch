@@ -3,4 +3,4 @@ defaults:
   - _self_ 
 
 network_type: "ANCSH"
-max_epochs: 250000
+max_epochs: 6000
