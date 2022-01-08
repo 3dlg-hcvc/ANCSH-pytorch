@@ -160,7 +160,7 @@ class ProcStage2Impl:
                 tmp_data_dir = os.path.join(self.tmp_output_dir, row['objectCat'], row['objectId'],
                                             row['articulationId'])
                 io.ensure_dir_exists(tmp_data_dir)
-                viewer.export(os.path.join(tmp_data_dir, instance_name+'_naocs_arrows.ply'))
+                viewer.export(os.path.join(tmp_data_dir, instance_name + '_naocs_arrows.ply'))
 
             valid_joints = [joint for joint in naocs_joints if joint if joint['type'] >= 0]
             num_valid_joints = len(valid_joints)
@@ -331,8 +331,8 @@ class ProcStage2:
         object_infos = {}
         bar = Bar('Stage2 Parse Object Infos', max=len(object_df))
         for index, row in object_df.iterrows():
-            stage1_tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'], row['objectId'],
-                                               self.stag1_tmp_output.folder_name)
+            stage1_tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.stag1_tmp_output.folder_name,
+                                               row['objectCat'], row['objectId'])
             rest_state_data_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_data)
             rest_state_data = io.read_json(rest_state_data_path)
             object_mesh_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_mesh)
