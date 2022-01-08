@@ -155,11 +155,11 @@ class DataLoader:
         self.data_info = render_data_info.merge(motion_data_info, how='inner', on=['objectCat', 'objectId'])
 
         selected_categories = self.data_info['objectCat'].isin(self.cfg.settings.categories) \
-            if len(self.cfg.settings.categories) > 0 else self.data_info['objectCat']
+            if len(self.cfg.settings.categories) > 0 else self.data_info['objectCat'].astype(bool)
         selected_object_ids = self.data_info['objectId'].isin(self.cfg.settings.object_ids) \
-            if len(self.cfg.settings.object_ids) > 0 else self.data_info['objectId']
+            if len(self.cfg.settings.object_ids) > 0 else self.data_info['objectId'].astype(bool)
         selected_articulation_ids = self.data_info['articulationId'].isin(self.cfg.settings.articulation_ids) \
-            if len(self.cfg.settings.articulation_ids) > 0 else self.data_info['articulationId']
+            if len(self.cfg.settings.articulation_ids) > 0 else self.data_info['articulationId'].astype(bool)
         self.data_info = self.data_info[selected_categories & selected_object_ids & selected_articulation_ids]
         self.data_info = self.data_info.reset_index(drop=True)
 

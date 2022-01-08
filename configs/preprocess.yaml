@@ -1,6 +1,6 @@
 version: "v1.0"
 
-debug: true
+debug: false
 show: false
 
 defaults:

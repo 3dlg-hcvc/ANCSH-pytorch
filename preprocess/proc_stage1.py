@@ -6,6 +6,7 @@ import numpy as np
 
 from PIL import Image
 from scipy.spatial.transform import Rotation as R
+from progress.bar import Bar
 
 from tools.utils import io
 import utils
@@ -27,6 +28,7 @@ class ProcStage1:
         self.debug = self.cfg.debug
 
     def preprocess_motion_data(self, motion_data_df):
+        log.info('Stage1 Parse Motion Data')
         for index, motion_data in motion_data_df.iterrows():
             motion_file_path = os.path.join(self.data_loader.motion_dir, motion_data['objectCat'],
                                             motion_data['objectId'], motion_data['motion'])
@@ -78,6 +80,7 @@ class ProcStage1:
         self.preprocess_motion_data(motion_data_df)
         io.ensure_dir_exists(self.cfg.paths.preprocess.output_dir)
         h5file = h5py.File(os.path.join(self.cfg.paths.preprocess.output_dir, self.output_cfg.pcd_data), 'w')
+        bar = Bar('Stage Processing', max=len(input_data))
         for index, input_each in input_data.iterrows():
             depth_frame_path = os.path.join(self.data_loader.render_dir, input_each['objectCat'],
                                             input_each['objectId'], input_each['articulationId'],
@@ -178,4 +181,6 @@ class ProcStage1:
                                    data=parts_camera2rest_state, compression="gzip")
             h5frame.create_dataset("base_transformation", shape=camera2base_matrix.shape,
                                    data=camera2base_matrix, compression="gzip")
+            bar.next()
+        bar.finish()
         h5file.close()
