@@ -32,6 +32,7 @@ class Viewer:
         if vertices is not None:
             self.add_geometry(vertices, faces, colors, mask)
         self.caption = None
+        self.point_size = 10
 
     head_body_ratio = 1.0 / 4
 
@@ -175,7 +176,7 @@ class Viewer:
         self._add_geometries_to_scenen()
         if window_size is None:
             window_size = [800, 600]
-        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=8.0,
+        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=self.point_size,
                         caption=self.caption)
 
     def _compute_initial_camera_pose(self):
@@ -184,16 +185,20 @@ class Viewer:
         if scale == 0.0:
             scale = DEFAULT_SCENE_SCALE
 
-        # s2 = 1.0 / np.sqrt(2.0)
-        cp = np.eye(4)
-        # cp[:3, :3] = np.array([
-        #     [0.0, -s2, s2],
-        #     [1.0, 0.0, 0.0],
-        #     [0.0, s2, s2]
-        # ])
+        look_at_pos = centroid
         h_fov = np.pi / 6.0
-        dist = scale / (1.5 * np.tan(h_fov))
-        cp[:3, 3] = dist * np.array([0.0, 0.0, 1.0]) + centroid
+        dist = scale / (2 * np.tan(h_fov))
+        camera_pos = dist * np.array([-1.0, 1.0, 1.0]) + centroid
+
+        forward = camera_pos - look_at_pos
+        forward /= np.linalg.norm(forward)
+        world_up = np.array([0, 0, 1])
+        right = np.cross(world_up, forward)
+        up = np.cross(forward, right)
+
+        look_at = np.vstack((right, up, forward, camera_pos))
+        cp = np.eye(4)
+        cp[:3, :4] = look_at.T
 
         return cp
 
@@ -202,7 +207,8 @@ class Viewer:
 
         if fig_size is None:
             fig_size = [1024, 768]
-        renderer = pyrender.OffscreenRenderer(viewport_width=fig_size[0], viewport_height=fig_size[1], point_size=10.0)
+        renderer = pyrender.OffscreenRenderer(viewport_width=fig_size[0], viewport_height=fig_size[1],
+                                              point_size=self.point_size)
         z_far = max(self.scene.scale * 10.0, DEFAULT_Z_FAR)
         if self.scene.scale == 0:
             z_near = DEFAULT_Z_NEAR
@@ -214,6 +220,7 @@ class Viewer:
         self.scene.add_node(cam_node)
         color, depth = renderer.render(self.scene)
         image = Image.fromarray(color.astype('uint8'), 'RGB')
+        io.ensure_dir_exists(os.path.dirname(fig_path))
         image.save(fig_path)
 
         renderer.delete()

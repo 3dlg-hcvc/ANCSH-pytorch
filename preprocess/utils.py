@@ -7,6 +7,7 @@ from matplotlib import cm
 from urdfpy import URDF, JointLimit
 
 from tools.utils import io
+from tools.visualization import Viewer
 
 # override attributes to make effort, velocity optional
 JointLimit._ATTRIBS = {
@@ -34,48 +35,6 @@ class JointType(Enum):
     floating = -1
     planar = -1
 
-
-def rgba_by_index(index, cmap_name='Set1'):
-    return list(cm.get_cmap(cmap_name)(index))
-
-
-def visualize_point_cloud(vertices, mask=None, colors=None, export=None, show=True, window_name='Point Cloud'):
-    colors = colors
-    if mask is not None:
-        unique_val = np.sort(np.unique(mask))
-        colors = np.empty([vertices.shape[0], 4])
-        for i, val in enumerate(unique_val):
-            rgba = rgba_by_index(i)
-            colors[mask == val] = rgba
-    pcd = trimesh.points.PointCloud(vertices, colors=colors)
-    if export:
-        pcd.export(export)
-    if show:
-        pcd.show(caption=window_name)
-
-
-def verify_npcs2camera(npcs_vertices, mask, transformations, scales, export=None, show=True,
-                       window_name='Point Cloud'):
-    part_classes = np.sort(np.unique(mask))
-    transformed_npcs = np.empty_like(npcs_vertices)
-    for part_class in part_classes:
-        part_npcs = npcs_vertices[mask == part_class]
-        npcs2cam_scale = scales[part_class]
-        part_npcs_scales = part_npcs * npcs2cam_scale
-        npcs2cam_transform = transformations[part_class].reshape((4, 4), order='F')
-        part_npcs_p4 = np.column_stack((part_npcs_scales, np.ones(part_npcs_scales.shape[0])))
-        part_npcs_p4 = part_npcs_p4.transpose()
-        transformed_part = np.dot(npcs2cam_transform, part_npcs_p4)
-        transformed_part = transformed_part.transpose()[:, :3]
-        transformed_npcs[mask == part_class] = transformed_part
-
-    transformed_pcd = trimesh.points.PointCloud(transformed_npcs, colors=rgba_by_index(0))
-    if export:
-        transformed_pcd.export(export)
-    if show:
-        transformed_pcd.show(caption=window_name)
-
-
 def get_mesh_info(mesh_path):
     mesh = trimesh.load(mesh_path, force='mesh')
     assert isinstance(mesh, trimesh.base.Trimesh)
@@ -90,52 +49,6 @@ def get_mesh_info(mesh_path):
         'scale': scale
     }
     return mesh_info
-
-
-def draw_arrow(pos, axis, color=None, radius=0.01, length=0.5):
-    if color is None:
-        color = rgba_by_index(0)
-    z_axis = [0, 0, 1]
-    head_transformation = np.eye(4)
-    head_transformation[:3, 3] += [0, 0, length / 2.0]
-    head = trimesh.creation.cone(2 * radius, length / 5.0, sections=10, transform=head_transformation)
-    body = trimesh.creation.cylinder(radius, length, sections=10)
-    transformation = trimesh.geometry.align_vectors(z_axis, axis)
-    transformation[:3, 3] += pos
-    arrow = head + body
-    arrow.apply_transform(transformation)
-    arrow.visual.vertex_colors = color
-    return arrow
-
-
-def visualize_heatmap_unitvec(vertices, heatmap, unitvec, export=None, show=True, window_name='Point Cloud'):
-    invalid_heatmap_mask = heatmap < 0
-    max_val = np.amax(heatmap)
-    heatmap[heatmap < 0] = 0
-    cmap = cm.get_cmap('jet')
-    colors = cmap(heatmap / max_val)
-    colors[invalid_heatmap_mask] = np.array([0.5, 0.5, 0.5, 0.8])
-    mesh = trimesh.base.Trimesh(vertices, vertex_normals=unitvec, vertex_colors=colors)
-    if export:
-        mesh.export(export)
-    if show:
-        mesh.show(caption=window_name)
-
-
-def visualize_joints_axis(vertices, mask, joint_axis, export=None, show=True, window_name='Point Cloud'):
-    unique_val = np.sort(np.unique(mask))
-    colors = np.empty([vertices.shape[0], 4])
-    for i, val in enumerate(unique_val):
-        if i == 0:
-            rgba = [0.5, 0.5, 0.5, 0.8]
-        else:
-            rgba = rgba_by_index(i)
-        colors[mask == val] = rgba
-    mesh = trimesh.base.Trimesh(vertices, vertex_normals=joint_axis, vertex_colors=colors)
-    if export:
-        mesh.export(export)
-    if show:
-        mesh.show(caption=window_name)
 
 
 class DataLoader:
@@ -248,7 +161,7 @@ class URDFReader:
                     mesh.visual = trimesh.visual.create_visual()
                     link_mesh += mesh
                 # part mesh visualization
-                color = rgba_by_index(link_idx)
+                color = Viewer.rgba_by_index(link_idx)
                 color[-1] = 0.8
                 link_mesh.visual.vertex_colors = color
                 if self.debug:

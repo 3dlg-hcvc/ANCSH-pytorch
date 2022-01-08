@@ -2,6 +2,8 @@ version: "v1.0"
 
 debug: false
 show: false
+export: false
+num_workers: 8
 
 defaults:
   - dataset: sapien
