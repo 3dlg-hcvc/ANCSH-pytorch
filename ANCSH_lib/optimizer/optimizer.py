@@ -2,6 +2,7 @@ import os
 import h5py
 import numpy as np
 import multiprocessing
+import logging
 
 from ANCSH_lib.optimizer.optimize_util import optimize_with_kinematic
 from tools.utils import io
@@ -14,16 +15,18 @@ def h5_dict(ins):
 
 
 class ANCSHOptimizer:
-    def __init__(self, cfg, ancsh_results_path, npcs_results_path):
+    def __init__(self, cfg, ancsh_results_path, npcs_results_path, num_parts):
         self.cfg = cfg
         self.f_ancsh = h5py.File(ancsh_results_path, "r")
         self.f_npcs = h5py.File(npcs_results_path, "r")
         self.instances = sorted(self.f_ancsh.keys())
+        self.num_parts = num_parts
+        self.log = logging.getLogger('optimizer')
         self.results = None
 
     def optimize(self, process_num=4):
         pool = multiprocessing.Pool(processes=process_num)
-        print(f"runing {self.cfg.optimization.niter} iterations for ransac")
+        self.log.info(f"runing {self.cfg.optimization.niter} iterations for ransac")
 
         process = []
         # This should automatically change the result file
@@ -34,20 +37,20 @@ class ANCSHOptimizer:
                     (
                         h5_dict(self.f_ancsh[ins]),
                         h5_dict(self.f_npcs[ins]),
-                        self.cfg.optimization.num_parts,
+                        self.num_parts,
                         self.cfg.optimization.niter,
                         self.cfg.optimization.choose_threshold,
                     ),
                 )
             )
 
-        # optimize_with_kinematic(
-        #     h5_dict(self.f_ancsh[ins]),
-        #     h5_dict(self.f_npcs[ins]),
-        #     self.cfg.optimization.num_parts,
-        #     self.cfg.optimization.niter,
-        #     self.cfg.optimization.choose_threshold,
-        # )
+            # optimize_with_kinematic(
+            #     h5_dict(self.f_ancsh[ins]),
+            #     h5_dict(self.f_npcs[ins]),
+            #     self.num_parts,
+            #     self.cfg.optimization.niter,
+            #     self.cfg.optimization.choose_threshold,
+            # )
         pool.close()
         pool.join()
 
@@ -70,10 +73,10 @@ class ANCSHOptimizer:
             axis=0,
         )
 
-        print(f"The mean rotation error for each part is: {mean_err_rotation}")
-        print(f"The mean translation error for each part is: {mean_err_translation}")
-        print(f"The accuracy for rotation error < 5 degree is: {acc_err_rotation}")
-        print(
+        self.log.info(f"The mean rotation error for each part is: {mean_err_rotation}")
+        self.log.info(f"The mean translation error for each part is: {mean_err_translation}")
+        self.log.info(f"The accuracy for rotation error < 5 degree is: {acc_err_rotation}")
+        self.log.info(
             f"The accuracy for rotation error < 5 degree and translation error < 5 cm is: {acc_err_rt}"
         )
 
