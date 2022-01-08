@@ -43,9 +43,9 @@ def get_mesh_info(mesh_path):
     center = np.mean(mesh.bounds, axis=0)
     scale = mesh.scale
     mesh_info = {
-        'min_bound': min_bound,
-        'max_bound': max_bound,
-        'center': center,
+        'min_bound': min_bound.tolist(),
+        'max_bound': max_bound.tolist(),
+        'center': center.tolist(),
         'scale': scale
     }
     return mesh_info

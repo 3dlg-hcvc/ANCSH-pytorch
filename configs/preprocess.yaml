@@ -20,6 +20,7 @@ settings:
     process: true
     train_percent: 0.6
     split_seed: 1
+    split_on: "objectId" # or articulationId, frameId
 
 params:
   joint_association_threshold: 0.2

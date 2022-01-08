@@ -27,14 +27,7 @@ preprocess:
       pcd_data: "${paths.preprocess.stage1.output.pcd_data}"
     tmp_output:
       folder_name: "stage2"
-      mesh_info: "mesh_info.json"
-      pcd_camera: "pcd_camera_%03d_%03d.ply"
-      pcd_npcs: "pcd_npcs_%03d_%03d.ply"
-      pcd_naocs: "pcd_naocs_%03d_%03d.ply"
-      arrows_naocs: "arrows_naocs_%03d_%03d.ply"
-      pcd_npcs2camera: "pcd_npcs2camera_%03d_%03d.ply"
-      pcd_heatmap_unitvec: "pcd_heatmap_unitvec_%03d_%03d.ply"
-      pcd_joints_axis: "pcd_joints_axis_%03d_%03d.ply"
+      object_info: "object_info.json"
     output:
       split_info: "split_info.csv"
       train_data: "train.h5"

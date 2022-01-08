@@ -99,25 +99,6 @@ class Viewer:
             all_colors = colors if all_colors is None else np.vstack((all_colors, colors))
         self.point_cloud = trimesh.points.PointCloud(vertices, colors=colors)
 
-    # def transform_parts(self, part_mask, transformations, scales, mesh_index=0):
-    #     if self.trimesh_list[mesh_index].vertices.shape[0] != part_mask.shape[0]:
-    #         log.error('Number of points in mask does not match the points in mesh')
-    #         return
-    #     part_classes = np.sort(np.unique(part_mask))
-    #     transformed_points = np.empty_like(self.mesh.vertices)
-    #     for part_class in part_classes:
-    #         part_points = self.mesh.vertices[part_mask == part_class]
-    #         scale = scales[part_class]
-    #         part_points_scaled = part_points * scale
-    #         part_transformation = transformations[part_class].reshape((4, 4), order='F')
-    #         part_points_scaled_p4 = np.column_stack((part_points_scaled, np.ones(part_points_scaled.shape[0])))
-    #         part_points_scaled_p4 = part_points_scaled_p4.transpose()
-    #         transformed_part = np.dot(part_transformation, part_points_scaled_p4)
-    #         transformed_part = transformed_part.transpose()[:, :3]
-    #         transformed_points[part_mask == part_class] = transformed_part
-    #
-    #     self.trimesh_list[mesh_index] = trimesh.base.Trimesh(transformed_points, colors=self.mesh.visual.vertex_colors)
-
     @staticmethod
     def draw_arrow(color=None, radius=0.01, length=0.5):
         if color is None:
@@ -133,6 +114,7 @@ class Viewer:
         return arrow
 
     def add_arrows(self, positions, axes, color=None, radius=0.01, length=0.5):
+        log.debug('add arrow')
         transformations = []
         z_axis = [0, 0, 1]
         for i, pos in enumerate(positions):
@@ -144,31 +126,37 @@ class Viewer:
         self.scene.add(arrows)
 
     def add_trimesh_arrows(self, positions, axes, color=None, radius=0.01, length=0.5):
+        log.debug('add trimesh arrow')
         arrows = []
         z_axis = [0, 0, 1]
         for i, pos in enumerate(positions):
+            arrow_length = length if isinstance(length, float) else length[i]
+            if arrow_length < 10e-6:
+                continue
             transformation = trimesh.geometry.align_vectors(z_axis, axes[i])
-            transformation[:3, 3] += pos + axes[i] * (1 - Viewer.head_body_ratio) / 2 * length[i]
-            if isinstance(length, float):
-                arrow = Viewer.draw_arrow(color, radius, length)
-            else:
-                arrow = Viewer.draw_arrow(color, radius, length[i])
+            transformation[:3, 3] += pos + axes[i] * (1 - Viewer.head_body_ratio) / 2 * arrow_length
+            arrow = Viewer.draw_arrow(color, radius, arrow_length)
             arrow.apply_transform(transformation)
             arrows.append(arrow)
         self.trimesh_list += arrows
 
     def _merge_geometries(self):
         if len(self.trimesh_list) > 0:
+            log.debug('concatenate triangle meshes')
             self.trimesh = trimesh.util.concatenate(self.trimesh_list)
-        self.merge_point_clouds()
+        if len(self.point_cloud_list) > 0:
+            log.debug('concatenate point clouds')
+            self.merge_point_clouds()
 
     def _add_geometries_to_scenen(self):
         if self.trimesh is None or self.point_cloud is None:
             self._merge_geometries()
         if self.trimesh is not None:
+            log.debug('add trimesh to scene')
             mesh = pyrender.Mesh.from_trimesh(self.trimesh)
             self.scene.add(mesh)
         if self.point_cloud is not None:
+            log.debug('add point cloud to scene')
             point_cloud = pyrender.Mesh.from_points(self.point_cloud.vertices, colors=self.point_cloud.colors)
             self.scene.add(point_cloud)
 
@@ -232,6 +220,10 @@ class Viewer:
             self._merge_geometries()
         if self.point_cloud is not None:
             mesh = trimesh.base.Trimesh(self.point_cloud.vertices, vertex_colors=self.point_cloud.colors)
-        if self.trimesh is not None and self.point_cloud is not None:
-            mesh = trimesh.util.concatenate(self.trimesh, mesh)
+        if self.trimesh is not None:
+            if self.point_cloud is not None:
+                mesh = trimesh.util.concatenate(self.trimesh, mesh)
+            else:
+                mesh = self.trimesh
+        io.ensure_dir_exists(os.path.dirname(mesh_path))
         mesh.export(mesh_path)

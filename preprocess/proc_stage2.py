@@ -1,10 +1,11 @@
 import os
 import h5py
 import pandas as pd
-import trimesh
 import logging
 import numpy as np
 from progress.bar import Bar
+from multiprocessing import Pool, cpu_count
+from omegaconf import OmegaConf
 
 from tools.utils import io
 from ANCSH_lib.utils import NetworkType
@@ -16,76 +17,20 @@ from utils import JointType
 log = logging.getLogger('proc_stage2')
 
 
-class ProcStage2:
+class ProcStage2Impl:
     def __init__(self, cfg):
-        self.cfg = cfg
-        self.input_cfg = self.cfg.paths.preprocess.stage2.input
-        self.input_h5 = h5py.File(os.path.join(self.cfg.paths.preprocess.output_dir, self.input_cfg.pcd_data), 'r')
-        self.output_dir = self.cfg.paths.preprocess.output_dir
-        self.stag1_tmp_output = self.cfg.paths.preprocess.stage1.tmp_output
-        self.tmp_output = self.cfg.paths.preprocess.stage2.tmp_output
-        self.split_info = None
-        self.debug = self.cfg.debug
-        self.show = self.cfg.show
-        stage1_input = self.cfg.paths.preprocess.stage1.input
-        self.part_orders = io.read_json(os.path.join(self.cfg.paths.preprocess.input_dir, stage1_input.part_order_file))
-        self.heatmap_threshold = self.cfg.params.joint_association_threshold
+        self.output_path = cfg.output_path
+        self.input_h5_path = cfg.input_h5_path
+        self.stage1_tmp_dir = cfg.stage1_tmp_dir
+        self.tmp_output_dir = cfg.tmp_output_dir
+        self.rest_state_data_filename = cfg.rest_state_data_filename
+        self.object_infos_path = cfg.object_infos_path
+        self.heatmap_threshold = cfg.heatmap_threshold
         self.epsilon = 10e-8
+        self.export = cfg.export
 
-    def split_data(self, train_percent=.6, seed=None):
-        datasets = []
-        visit_leaves = lambda name, node: datasets.append(name) if isinstance(node, h5py.Dataset) else None
-        self.input_h5.visititems(visit_leaves)
-        df_dataset = pd.DataFrame([name.split('/') for name in datasets],
-                                  columns=['objectCat', 'objectId', 'articulationId', 'frameId', 'dataName'])
-        df_dataset = df_dataset[['objectCat', 'objectId', 'articulationId', 'frameId']] \
-            .drop_duplicates(ignore_index=True)
-        # select data in config
-        selected_categories = df_dataset['objectCat'].isin(self.cfg.settings.categories) \
-            if len(self.cfg.settings.categories) > 0 else df_dataset['objectCat'].astype(bool)
-        selected_object_ids = df_dataset['objectId'].isin(self.cfg.settings.object_ids) \
-            if len(self.cfg.settings.object_ids) > 0 else df_dataset['objectId'].astype(bool)
-        selected_articulation_ids = df_dataset['articulationId'].isin(self.cfg.settings.articulation_ids) \
-            if len(self.cfg.settings.articulation_ids) > 0 else df_dataset['articulationId'].astype(bool)
-        df_dataset = df_dataset[selected_categories & selected_object_ids & selected_articulation_ids]
-
-        if io.file_exist(self.cfg.paths.preprocess.stage2.input.split_info, ext='.csv'):
-            input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info)
-            self.split_info = input_split_info.merge(df_dataset, how='inner',
-                                                     on=['objectCat', 'objectId', 'articulationId', 'frameId'])
-        else:
-            # split to train, val, test
-            df_size = len(df_dataset)
-            if df_size:
-                val_end = train_percent + (1.0 - train_percent) / 2.0
-                train, val, test = np.split(df_dataset.sample(frac=1, random_state=seed),
-                                            [int(train_percent * df_size), int(val_end * df_size)])
-
-                self.split_info = pd.concat([train, val, test], keys=["train", "val", "test"], names=['set', 'index'])
-            else:
-                log.error('No data to split!')
-                return
-        self.split_info.to_csv(os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.split_info))
-
-    def process(self):
-        io.ensure_dir_exists(self.output_dir)
-        if self.split_info is None or self.split_info.empty:
-            log.error('No data to process!')
-            return
-        train = self.split_info.loc['train']
-        log.info(f'Stage2 Process Train Set {len(train)} instances')
-        self.process_each(train,
-                          os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.train_data))
-        val = self.split_info.loc['val']
-        log.info(f'Stage2 Process Val Set {len(val)} instances')
-        self.process_each(val,
-                          os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.val_data))
-        test = self.split_info.loc['test']
-        log.info(f'Stage2 Process Test Set {len(test)} instances')
-        self.process_each(test,
-                          os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data))
-
-    def get_joint_params(self, vertices, joint, selected_vertices):
+    @staticmethod
+    def get_joint_params(vertices, joint, selected_vertices):
         heatmap = -np.ones((vertices.shape[0]))
         unitvec = np.zeros((vertices.shape[0], 3))
         joint_pos = joint['abs_position']
@@ -112,52 +57,23 @@ class ProcStage2:
         heatmap = np.where(heatmap >= 0, heatmap, np.inf)
         return heatmap, unitvec
 
-    def process_each(self, data_info, output_path):
-        # process object info
-        object_df = data_info[['objectCat', 'objectId']].drop_duplicates()
-        object_infos = {}
-        log.info('Stage2 Parse Object Infos')
-        for index, row in object_df.iterrows():
-            stage1_tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'], row['objectId'],
-                                               self.stag1_tmp_output.folder_name)
-            rest_state_data_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_data)
-            rest_state_data = io.read_json(rest_state_data_path)
-            object_mesh_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_mesh)
-            object_dict = utils.get_mesh_info(object_mesh_path)
-            part_dict = {}
-            part_order = None
-            if self.part_orders:
-                part_order = self.part_orders[row['objectCat']][row['objectId']]
-            part_index = 0
-            for link_index, link in enumerate(rest_state_data['links']):
-                if link['virtual']:
-                    continue
-                part_mesh_path = os.path.join(stage1_tmp_data_dir,
-                                              f'{link["name"]}_{self.stag1_tmp_output.rest_state_mesh}')
-                part_dict[link_index] = utils.get_mesh_info(part_mesh_path)
-                if part_order:
-                    part_dict[link_index]['part_class'] = part_order.index(link['part_index'])
-                else:
-                    part_dict[link_index]['part_class'] = part_index
-                    part_index += 1
-            if row['objectCat'] in object_infos:
-                object_infos[row['objectCat']][row['objectId']] = {'object': object_dict, 'part': part_dict}
-            else:
-                object_infos[row['objectCat']] = {row['objectId']: {'object': object_dict, 'part': part_dict}}
+    def __call__(self, idx, input_data):
+        input_h5 = h5py.File(self.input_h5_path, 'r')
+        object_infos = io.read_json(self.object_infos_path)
+        output_filepath = os.path.splitext(self.output_path)[0] + f'_{idx}' + os.path.splitext(self.output_path)[-1]
+        h5file = h5py.File(output_filepath, 'w')
+        bar = Bar(f'Stage2 Processing chunk {idx}', max=len(input_data))
+        for index, row in input_data.iterrows():
+            instance_name = f'{row["objectCat"]}_{row["objectId"]}_{row["articulationId"]}_{row["frameId"]}'
+            in_h5frame = input_h5[instance_name]
+            mask = in_h5frame['mask'][:]
+            points_camera = in_h5frame['points_camera'][:]
+            points_rest_state = in_h5frame['points_rest_state'][:]
+            parts_camera2rest_state = in_h5frame['parts_transformation'][:]
+            camera2base = in_h5frame['base_transformation'][:]
 
-        h5file = h5py.File(output_path, 'w')
-        bar = Bar('Stage2 Processing', max=len(data_info))
-        for index, row in data_info.iterrows():
-            h5frame = self.input_h5[row['objectCat']][row['objectId']][row['articulationId']][row['frameId']]
-            mask = h5frame['mask'][:]
-            points_camera = h5frame['points_camera'][:]
-            points_rest_state = h5frame['points_rest_state'][:]
-            parts_camera2rest_state = h5frame['parts_transformation'][:]
-            camera2base = h5frame['base_transformation'][:]
-
-            stage1_tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'], row['objectId'],
-                                               self.stag1_tmp_output.folder_name)
-            rest_state_data_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_data)
+            stage1_tmp_data_dir = os.path.join(self.stage1_tmp_dir, row['objectCat'], row['objectId'])
+            rest_state_data_path = os.path.join(stage1_tmp_data_dir, self.rest_state_data_filename)
             rest_state_data = io.read_json(rest_state_data_path)
 
             part_info = object_infos[row['objectCat']][row['objectId']]['part']
@@ -167,7 +83,7 @@ class ProcStage2:
             object_info = object_infos[row['objectCat']][row['objectId']]['object']
             # diagonal axis aligned bounding box length to 1
             # (0.5, 0.5, 0.5) centered
-            naocs_translation = - object_info['center'] + 0.5 * object_info['scale']
+            naocs_translation = - np.asarray(object_info['center']) + 0.5 * object_info['scale']
             naocs_scale = 1.0 / object_info['scale']
             naocs = points_rest_state + naocs_translation
             naocs *= naocs_scale
@@ -186,30 +102,31 @@ class ProcStage2:
             for link_index, link in enumerate(rest_state_data['links']):
                 if link['virtual']:
                     continue
+                link_index_key = str(link_index)
                 part_points = points_rest_state[mask == link_index]
-                center = part_info[link_index]['center']
+                center = np.asarray(part_info[link_index_key]['center'])
                 # diagonal axis aligned bounding box length to 1
                 # (0.5, 0.5, 0.5) centered
-                npcs_translation = - center + 0.5 * part_info[link_index]['scale']
-                npcs_scale = 1.0 / part_info[link_index]['scale']
+                npcs_translation = - center + 0.5 * part_info[link_index_key]['scale']
+                npcs_scale = 1.0 / part_info[link_index_key]['scale']
                 part_points_norm = part_points + npcs_translation
                 part_points_norm *= npcs_scale
 
                 npcs[mask == link_index] = part_points_norm
-                part_class = part_info[link_index]['part_class']
+                part_class = part_info[link_index_key]['part_class']
                 points_class[mask == link_index] = part_class
                 npcs_transformation = np.reshape(parts_camera2rest_state[link['part_index']], (4, 4), order='F')
                 npcs_transformation[:3, 3] += npcs_translation
                 npcs2cam_transformation = np.linalg.inv(npcs_transformation)
                 parts_npcs2cam_transformation[part_class] = npcs2cam_transformation.flatten('F')
                 parts_npcs2cam_scale[part_class] = 1.0 / npcs_scale
-                parts_min_bounds[part_class] = part_info[link_index]['min_bound']
-                parts_max_bounds[part_class] = part_info[link_index]['max_bound']
+                parts_min_bounds[part_class] = np.asarray(part_info[link_index_key]['min_bound'])
+                parts_max_bounds[part_class] = np.asarray(part_info[link_index_key]['max_bound'])
 
             # process joints related ground truth
             link_names = [link['name'] for link in rest_state_data['links']]
             # transform joints to naocs space
-            naocs_arrows = []
+            viewer = Viewer()
             naocs_joints = rest_state_data['joints']
             for i, joint in enumerate(rest_state_data['joints']):
                 if not joint:
@@ -229,28 +146,21 @@ class ProcStage2:
                 naocs_joints[i]['axis'] = joint_axis
 
                 joint_child = joint['child']
-                child_link_class = part_info[link_names.index(joint_child)]['part_class']
+                child_link_class = part_info[str(link_names.index(joint_child))]['part_class']
                 joint_class = child_link_class
                 naocs_joints[i]['class'] = joint_class
 
                 joint_type = JointType[joint['type']].value
                 naocs_joints[i]['type'] = joint_type
 
-                if self.debug:
-                    naocs_arrow = Viewer.draw_arrow(color=utils.rgba_by_index(joint_class), radius=0.01, length=0.3)
-                    z_axis = [0, 0, 1]
-                    transformation = trimesh.geometry.align_vectors(z_axis, joint_axis)
-                    transformation[:3, 3] += naocs_joint_pos + joint_axis * (1 - Viewer.head_body_ratio) / 2
-                    naocs_arrow.apply_transform(transformation)
-                    naocs_arrows.append(naocs_arrow)
+                if self.export:
+                    viewer.add_trimesh_arrows([naocs_joint_pos], [joint_axis], color=Viewer.rgba_by_index(joint_class))
 
-            if self.debug:
-                tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'],
-                                            row['objectId'], self.tmp_output.folder_name)
+            if self.export:
+                tmp_data_dir = os.path.join(self.tmp_output_dir, row['objectCat'], row['objectId'],
+                                            row['articulationId'])
                 io.ensure_dir_exists(tmp_data_dir)
-                naocs_arrows_mesh = trimesh.util.concatenate(naocs_arrows)
-                naocs_arrows_mesh.export(os.path.join(tmp_data_dir, self.tmp_output.arrows_naocs %
-                                                      (int(row["articulationId"]), int(row["frameId"]))))
+                viewer.export(os.path.join(tmp_data_dir, instance_name+'_naocs_arrows.ply'))
 
             valid_joints = [joint for joint in naocs_joints if joint if joint['type'] >= 0]
             num_valid_joints = len(valid_joints)
@@ -263,11 +173,11 @@ class ProcStage2:
                 child_links = [i for i, link in enumerate(rest_state_data['links'])
                                if link if not link['virtual'] if joint['child'] == link['name']]
                 connected_links = parent_links + child_links
-                part_classes = [part_info[link_index]['part_class'] for link_index in connected_links]
+                part_classes = [part_info[str(link_index)]['part_class'] for link_index in connected_links]
                 if joint['type'] == JointType.prismatic.value:
                     part_classes = [part_class for part_class in part_classes if part_class == joint_class]
                 selected_vertex_indices = np.isin(points_class, part_classes)
-                part_heatmap, part_unitvec = self.get_joint_params(naocs, joint, selected_vertex_indices)
+                part_heatmap, part_unitvec = ProcStage2Impl.get_joint_params(naocs, joint, selected_vertex_indices)
 
                 tmp_heatmap[joint_class - 1] = part_heatmap
                 tmp_unitvec[joint_class - 1] = part_unitvec
@@ -287,8 +197,6 @@ class ProcStage2:
                 if joint:
                     joints_axis[joints_association == joint['class']] = joint['axis']
                     joint_types[joint['class']] = joint['type']
-
-            instance_name = f'{row["objectCat"]}_{row["objectId"]}_{row["articulationId"]}_{row["frameId"]}'
 
             h5frame = h5file.require_group(instance_name)
             h5frame.attrs['objectCat'] = row["objectCat"]
@@ -329,13 +237,170 @@ class ProcStage2:
                                    compression="gzip")
             bar.next()
         bar.finish()
+        h5file.close()
+        input_h5.close()
+        return output_filepath
+
+
+class ProcStage2:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.input_cfg = self.cfg.paths.preprocess.stage2.input
+        self.input_h5_path = os.path.join(self.cfg.paths.preprocess.output_dir, self.input_cfg.pcd_data)
+        self.output_dir = self.cfg.paths.preprocess.output_dir
+        self.stag1_tmp_output = self.cfg.paths.preprocess.stage1.tmp_output
+        self.tmp_output = self.cfg.paths.preprocess.stage2.tmp_output
+        self.split_info = None
+        self.debug = self.cfg.debug
+        self.show = self.cfg.show
+        self.export = self.cfg.export
+        stage1_input = self.cfg.paths.preprocess.stage1.input
+        self.part_orders = io.read_json(os.path.join(self.cfg.paths.preprocess.input_dir, stage1_input.part_order_file))
+        self.heatmap_threshold = self.cfg.params.joint_association_threshold
+
+    def split_data(self, train_percent=.6, split_on='objectId', seed=None):
+        instances = []
+        visit_groups = lambda name, node: instances.append(name) if isinstance(node, h5py.Group) else None
+        input_h5 = h5py.File(self.input_h5_path, 'r')
+        input_h5.visititems(visit_groups)
+        df_dataset = pd.DataFrame([name.split('_') for name in instances],
+                                  columns=['objectCat', 'objectId', 'articulationId', 'frameId'])
+        df_dataset = df_dataset.drop_duplicates(ignore_index=True)
+        # select data in config
+        selected_categories = df_dataset['objectCat'].isin(self.cfg.settings.categories) \
+            if len(self.cfg.settings.categories) > 0 else df_dataset['objectCat'].astype(bool)
+        selected_object_ids = df_dataset['objectId'].isin(self.cfg.settings.object_ids) \
+            if len(self.cfg.settings.object_ids) > 0 else df_dataset['objectId'].astype(bool)
+        selected_articulation_ids = df_dataset['articulationId'].isin(self.cfg.settings.articulation_ids) \
+            if len(self.cfg.settings.articulation_ids) > 0 else df_dataset['articulationId'].astype(bool)
+        df_dataset = df_dataset[selected_categories & selected_object_ids & selected_articulation_ids]
+
+        if io.file_exist(self.cfg.paths.preprocess.stage2.input.split_info, ext='.csv'):
+            input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info)
+            self.split_info = input_split_info.merge(df_dataset, how='inner',
+                                                     on=['objectCat', 'objectId', 'articulationId', 'frameId'])
+        else:
+            # split to train, val, test
+            df_size = len(df_dataset)
+            log.info(f'Split on key {split_on}')
+            if df_size:
+                if split_on == 'objectId':
+                    split_on_columns = ['objectCat', 'objectId']
+                elif split_on == 'articulationId':
+                    split_on_columns = ['objectCat', 'objectId', 'articulationId']
+                elif split_on == 'frameId':
+                    split_on_columns = ['objectCat', 'objectId', 'articulationId', 'frameId']
+                else:
+                    split_on_columns = ['objectCat', 'objectId']
+                    log.warning(f'Cannot parse split_on {split_on}, split on objectId by default')
+
+                val_end = train_percent + (1.0 - train_percent) / 2.0
+                train_set, val_set, test_set = np.split(
+                    df_dataset.groupby(split_on_columns).sample(n=1, random_state=seed),
+                    [int(train_percent * df_size), int(val_end * df_size)]
+                )
+                train = train_set.merge(df_dataset, how='left', on=split_on_columns)
+                val = val_set.merge(df_dataset, how='left', on=split_on_columns)
+                test = test_set.merge(df_dataset, how='left', on=split_on_columns)
+
+                self.split_info = pd.concat([train, val, test], keys=["train", "val", "test"], names=['set', 'index'])
+            else:
+                log.error('No data to split!')
+                return
+        self.split_info.to_csv(os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.split_info))
+
+    def process(self):
+        io.ensure_dir_exists(self.output_dir)
+        if self.split_info is None or self.split_info.empty:
+            log.error('No data to process!')
+            return
+        train = self.split_info.loc['train']
+        log.info(f'Stage2 Process Train Set {len(train)} instances')
+        self.process_set(train,
+                         os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.train_data))
+        val = self.split_info.loc['val']
+        log.info(f'Stage2 Process Val Set {len(val)} instances')
+        self.process_set(val,
+                         os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.val_data))
+        test = self.split_info.loc['test']
+        log.info(f'Stage2 Process Test Set {len(test)} instances')
+        self.process_set(test,
+                         os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data))
+
+    def process_set(self, input_data, output_path):
+        # process object info
+        object_df = input_data[['objectCat', 'objectId']].drop_duplicates()
+        object_infos = {}
+        bar = Bar('Stage2 Parse Object Infos', max=len(object_df))
+        for index, row in object_df.iterrows():
+            stage1_tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, row['objectCat'], row['objectId'],
+                                               self.stag1_tmp_output.folder_name)
+            rest_state_data_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_data)
+            rest_state_data = io.read_json(rest_state_data_path)
+            object_mesh_path = os.path.join(stage1_tmp_data_dir, self.stag1_tmp_output.rest_state_mesh)
+            object_dict = utils.get_mesh_info(object_mesh_path)
+            part_dict = {}
+            part_order = None
+            if self.part_orders:
+                part_order = self.part_orders[row['objectCat']][row['objectId']]
+            part_index = 0
+            for link_index, link in enumerate(rest_state_data['links']):
+                if link['virtual']:
+                    continue
+                part_mesh_path = os.path.join(stage1_tmp_data_dir,
+                                              f'{link["name"]}_{self.stag1_tmp_output.rest_state_mesh}')
+                part_dict[link_index] = utils.get_mesh_info(part_mesh_path)
+                if part_order:
+                    part_dict[link_index]['part_class'] = part_order.index(link['part_index'])
+                else:
+                    part_dict[link_index]['part_class'] = part_index
+                    part_index += 1
+            if row['objectCat'] in object_infos:
+                object_infos[row['objectCat']][row['objectId']] = {'object': object_dict, 'part': part_dict}
+            else:
+                object_infos[row['objectCat']] = {row['objectId']: {'object': object_dict, 'part': part_dict}}
+            bar.next()
+        bar.finish()
+        tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+        io.ensure_dir_exists(tmp_data_dir)
+        object_infos_path = os.path.join(tmp_data_dir, self.tmp_output.object_info)
+        io.write_json(object_infos, object_infos_path)
+
+        num_processes = min(cpu_count(), self.cfg.num_workers)
+        # calculate the chunk size
+        chunk_size = max(1, int(input_data.shape[0] / num_processes))
+        chunks = [input_data.iloc[input_data.index[i:i + chunk_size]] for i in
+                  range(0, input_data.shape[0], chunk_size)]
+        log.info(f'Stage2 Processing Start with {num_processes} workers and {len(chunks)} chunks')
+
+        config = OmegaConf.create()
+        config.output_path = output_path
+        config.input_h5_path = self.input_h5_path
+        config.stage1_tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.stag1_tmp_output.folder_name)
+        config.tmp_output_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+        config.rest_state_data_filename = self.stag1_tmp_output.rest_state_data
+        config.object_infos_path = object_infos_path
+        config.heatmap_threshold = self.heatmap_threshold
+        config.export = self.cfg.export
+
+        with Pool(processes=num_processes) as pool:
+            proc_impl = ProcStage2Impl(config)
+            output_filepath_list = pool.starmap(proc_impl, enumerate(chunks))
+
+        h5file = h5py.File(output_path, 'w')
+        for filepath in output_filepath_list:
+            with h5py.File(filepath, 'r') as h5f:
+                for key in h5f.keys():
+                    h5f.copy(key, h5file)
+        h5file.close()
 
         if self.debug:
             tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
             io.ensure_dir_exists(tmp_data_dir)
 
-            visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
-            visualizer.prefix = ''
-            visualizer.render(show=self.show, export=tmp_data_dir)
-
-        h5file.close()
+            with h5py.File(output_path, 'r') as h5file:
+                visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
+                visualizer.point_size = 5
+                visualizer.arrow_sampling = 10
+                visualizer.prefix = ''
+                visualizer.render(show=self.show, export=tmp_data_dir, export_mesh=self.export)

@@ -4,6 +4,7 @@ import h5py
 import numpy as np
 import trimesh.base
 from matplotlib import cm
+from progress.bar import Bar
 
 import hydra
 from hydra.utils import get_original_cwd
@@ -22,20 +23,21 @@ class ANCSHVisualizer:
         self.gt = gt
         self.prefix = 'gt_' if gt else 'pred_'
         self.export_dir = None
-        if self.export_dir is not None:
-            io.ensure_dir_exists(self.export_dir)
         self.items = []
         self.show_flag = False
         self.render_flag = False
         self.export_flag = False
         self.network_type = network_type
         self.sampling = sampling
+        self.arrow_sampling = 4
 
         self.width = 1024
         self.height = 768
-        self.fig_ext = '.png'
+        self.point_size = 10
+        self.fig_ext = '.jpg'
         self.mesh_ext = '.ply'
 
+        self.draw_offset_arrows = True
         self.additional_mesh = None
 
     def parse_items(self):
@@ -45,65 +47,66 @@ class ANCSHVisualizer:
     def add_trimesh(self, mesh: trimesh.base.Trimesh):
         self.additional_mesh = mesh
 
-    def render_options(self, viewer, name):
+    def render_options(self, viewer, name, suffix=''):
         if self.additional_mesh is not None:
             viewer.add_trimesh(self.additional_mesh)
+        filename = name + suffix + '_' + self.network_type.value
+        folder_names = name.split('_')
+        viz_output_dir = os.path.join(self.export_dir, folder_names[0], folder_names[1], folder_names[2])
+        viewer.point_size = self.point_size
         if self.show_flag:
             viewer.show(window_size=[self.width, self.height], window_name=name)
         if self.render_flag and self.export_dir:
-            io.ensure_dir_exists(self.export_dir)
-            viewer.render(fig_path=os.path.join(self.export_dir, name + '_' + self.network_type.value + self.fig_ext),
+            viewer.render(fig_path=os.path.join(viz_output_dir, filename + self.fig_ext),
                           fig_size=[self.width, self.height])
         if self.export_flag and self.export_dir:
-            io.ensure_dir_exists(self.export_dir)
-            viewer.export(mesh_path=os.path.join(self.export_dir, name + '_' + self.network_type.value + self.mesh_ext))
+            viewer.export(mesh_path=os.path.join(viz_output_dir, filename + self.mesh_ext))
 
     def viz_segmentation(self, data_group, data_name):
         suffix = '_segmentation'
-        segmentations = data_group[f'{self.prefix}seg_per_point'][:]
-        points_camera = data_group['camcs_per_point'][:]
+        segmentations = data_group[f'{self.prefix}seg_per_point'][:][::self.sampling]
+        points_camera = data_group['camcs_per_point'][:][::self.sampling]
         viewer = Viewer(points_camera, mask=segmentations)
-        self.render_options(viewer, data_name + suffix)
+        self.render_options(viewer, data_name, suffix)
         del viewer
 
     def viz_npcs(self, data_group, data_name):
         suffix = '_npcs'
-        segmentations = data_group[f'{self.prefix}seg_per_point'][:]
-        npcs_points = data_group[f'{self.prefix}npcs_per_point'][:]
+        segmentations = data_group[f'{self.prefix}seg_per_point'][:][::self.sampling]
+        npcs_points = data_group[f'{self.prefix}npcs_per_point'][:][::self.sampling]
 
-        viewer = Viewer(npcs_points[::self.sampling], mask=segmentations[::self.sampling])
-        self.render_options(viewer, data_name + suffix)
+        viewer = Viewer(npcs_points, mask=segmentations)
+        self.render_options(viewer, data_name, suffix)
         del viewer
 
     def viz_naocs(self, data_group, data_name):
         suffix = '_naocs'
-        segmentations = data_group[f'{self.prefix}seg_per_point'][:]
-        naocs_points = data_group[f'{self.prefix}naocs_per_point'][:]
-        viewer = Viewer(naocs_points[::self.sampling], mask=segmentations[::self.sampling])
-        self.render_options(viewer, data_name + suffix)
+        segmentations = data_group[f'{self.prefix}seg_per_point'][:][::self.sampling]
+        naocs_points = data_group[f'{self.prefix}naocs_per_point'][:][::self.sampling]
+        viewer = Viewer(naocs_points, mask=segmentations)
+        self.render_options(viewer, data_name, suffix)
         del viewer
 
     def viz_joint_association(self, data_group, data_name):
         suffix = '_joint_association'
-        joint_associations = data_group[f'{self.prefix}joint_cls_per_point'][:]
-        joint_axes = data_group[f'{self.prefix}axis_per_point'][:]
-        naocs_points = data_group[f'{self.prefix}naocs_per_point'][:]
+        joint_associations = data_group[f'{self.prefix}joint_cls_per_point'][:][::self.sampling]
+        joint_axes = data_group[f'{self.prefix}axis_per_point'][:][::self.sampling]
+        naocs_points = data_group[f'{self.prefix}naocs_per_point'][:][::self.sampling]
         colors = Viewer.colors_from_mask(joint_associations, empty_first=True)
         viewer = Viewer(naocs_points, colors=colors)
         arrow_sample_indices = joint_associations != 0
-        arrow_sample_indices[::2] = False
-        viewer.add_arrows(naocs_points[arrow_sample_indices][::self.sampling],
-                          joint_axes[arrow_sample_indices][::self.sampling],
+        viewer.add_arrows(naocs_points[arrow_sample_indices][::self.arrow_sampling],
+                          joint_axes[arrow_sample_indices][::self.arrow_sampling],
                           color=[0, 0, 0, 0.6], radius=0.002, length=0.04)
-        self.render_options(viewer, data_name + suffix)
+        self.render_options(viewer, data_name, suffix)
         del viewer
 
     def viz_point2joint_offset(self, data_group, data_name):
         suffix = '_point2joint_offset'
-        joint_associations = data_group[f'{self.prefix}joint_cls_per_point'][:]
-        point_heatmaps = data_group[f'{self.prefix}heatmap_per_point'][:]
-        unit_vectors = data_group[f'{self.prefix}unitvec_per_point'][:]
-        naocs_points = data_group[f'{self.prefix}naocs_per_point'][:]
+        joint_associations = data_group[f'{self.prefix}joint_cls_per_point'][:][::self.sampling]
+        point_heatmaps = data_group[f'{self.prefix}heatmap_per_point'][:][::self.sampling]
+        unit_vectors = data_group[f'{self.prefix}unitvec_per_point'][:][::self.sampling]
+        naocs_points = data_group[f'{self.prefix}naocs_per_point'][:][::self.sampling]
 
         invalid_heatmap_mask = joint_associations == 0
         max_val = np.amax(point_heatmaps)
@@ -112,43 +115,50 @@ class ANCSHVisualizer:
         colors[invalid_heatmap_mask] = np.array([0.5, 0.5, 0.5, 0.5])
         viewer = Viewer(naocs_points, colors=colors)
         arrow_sample_indices = ~invalid_heatmap_mask
-        arrow_sample_indices[::2] = False
         arrow_length = (1 - point_heatmaps) * 0.2 + 10e-8
-        viewer.add_trimesh_arrows(naocs_points[arrow_sample_indices][::self.sampling],
-                                  unit_vectors[arrow_sample_indices][::self.sampling],
-                                  color=[0, 0, 0, 0.6], radius=0.002,
-                                  length=arrow_length[arrow_sample_indices][::self.sampling])
-        self.render_options(viewer, data_name + suffix)
+        if self.draw_offset_arrows:
+            viewer.add_trimesh_arrows(naocs_points[arrow_sample_indices][::self.arrow_sampling],
+                                      unit_vectors[arrow_sample_indices][::self.arrow_sampling],
+                                      color=[0, 0, 0, 0.6], radius=0.002,
+                                      length=arrow_length[arrow_sample_indices][::self.arrow_sampling])
+        else:
+            viewer.add_arrows(naocs_points[arrow_sample_indices][::self.arrow_sampling],
+                              unit_vectors[arrow_sample_indices][::self.arrow_sampling],
+                              color=[0, 0, 0, 0.6], radius=0.002, length=0.04)
+            self.render_options(viewer, data_name, suffix)
+        self.render_options(viewer, data_name, suffix)
         del viewer
 
-    def render(self, show=False, export=None):
+    def render(self, show=False, export=None, export_mesh=False):
         self.show_flag = show
         if self.show_flag:
             self.render_flag = False
         else:
             self.render_flag = True
-        self.export_flag = False if export is None else True
+        self.export_flag = export_mesh
         self.export_dir = export
 
         self.parse_items()
-        log.info(f'Rendering instances {self.items}')
+        bar = Bar(f'Rendering {len(self.items)} instances', max=len(self.items))
         for i, item_name in enumerate(self.items):
             data_group = self.data[item_name]
-            print(data_group.keys())
+            log.debug(f'Render {item_name}')
+            log.debug(data_group.keys())
+            log.debug(data_group.attrs)
             self.viz_segmentation(data_group, item_name)
             self.viz_npcs(data_group, item_name)
             if self.network_type == NetworkType.ANCSH:
                 self.viz_naocs(data_group, item_name)
                 self.viz_joint_association(data_group, item_name)
                 self.viz_point2joint_offset(data_group, item_name)
+            bar.next()
+        bar.finish()
 
 
 class OptimizerVisualizer:
     def __init__(self, data: h5py.File):
         self.data = data
         self.export_dir = None
-        if self.export_dir is not None:
-            io.ensure_dir_exists(self.export_dir)
         self.items = []
         self.show_flag = False
         self.render_flag = False
@@ -156,30 +166,26 @@ class OptimizerVisualizer:
 
         self.width = 1024
         self.height = 768
-        self.fig_ext = '.png'
+        self.fig_ext = '.jpg'
         self.mesh_ext = '.ply'
 
     def parse_items(self):
         visit_groups = lambda name, node: self.items.append(name) if isinstance(node, h5py.Group) else None
         self.data.visititems(visit_groups)
 
-    def render_options(self, viewer, name):
+    def render_options(self, viewer, name, suffix):
+        filename = name + suffix + '_optimization'
+        folder_names = name.split('_')
+        viz_output_dir = os.path.join(self.export_dir, folder_names[0], folder_names[1], folder_names[2])
         if self.show_flag:
             viewer.show(window_size=[self.width, self.height], window_name=name)
         if self.render_flag and self.export_dir:
-            io.ensure_dir_exists(self.export_dir)
-            viewer.render(fig_path=os.path.join(self.export_dir, name + '_' + 'optimization' + self.fig_ext),
+            viewer.render(fig_path=os.path.join(viz_output_dir, filename + self.fig_ext),
                           fig_size=[self.width, self.height])
         if self.export_flag and self.export_dir:
-            io.ensure_dir_exists(self.export_dir)
-            viewer.export(mesh_path=os.path.join(self.export_dir, name + '_' + 'optimization' + self.mesh_ext))
+            viewer.export(mesh_path=os.path.join(viz_output_dir, filename + self.mesh_ext))
 
     def viz_npcs2cam(self, data_group, data_name):
-        log.info('gt_npcs2cam_rt')
-        log.info(data_group['gt_npcs2cam_rt'][:])
-        log.info('pred_npcs2cam_rt')
-        log.info(data_group['pred_npcs2cam_rt'][:])
-        suffix = '_npcs2cam'
         segmentations = data_group['pred_seg_per_point'][:]
         npcs_points = data_group['pred_npcs_per_point'][:]
         npcs2cam_rt = data_group['gt_npcs2cam_rt'][:]
@@ -187,9 +193,7 @@ class OptimizerVisualizer:
         camera_points = data_group['camcs_per_point'][:]
         npcs2cam_points = np.empty_like(npcs_points)
         for k in range(npcs2cam_rt.shape[0]):
-            rt = npcs2cam_rt[k].reshape((4,4), order='F')
-            if k == 1:
-                rt[:, 3] = 0
+            rt = npcs2cam_rt[k].reshape((4, 4), order='F')
             scale = npcs2cam_scale[k]
             npcs2cam_points_part = npcs_points[segmentations == k] * scale
             npcs2cam_points_part_p4 = np.hstack((npcs2cam_points_part, np.ones((npcs2cam_points_part.shape[0], 1))))
@@ -200,39 +204,31 @@ class OptimizerVisualizer:
         max_val = np.amax(distance)
         cmap = cm.get_cmap('jet')
         colors = cmap(distance / max_val)
-        caption = {
-            'err_rotation': data_group['err_rotation'][:],
-            'err_translation': data_group['err_translation'][:],
-            'err_scale': data_group['err_scale'][:]
-        }
-        viewer = Viewer(camera_points, mask=segmentations)
-        # arrow = viewer.draw_arrow()
-        # arrow.apply_transform(npcs2cam_rt)
-        self.render_options(viewer, data_name + 'camera_points')
-        viewer.reset()
-        viewer.add_geometry(npcs2cam_points, mask=segmentations)
-        self.render_options(viewer, data_name + suffix)
+        viewer = Viewer(npcs2cam_points, mask=segmentations)
+        self.render_options(viewer, data_name, '_npcs2cam')
         viewer.reset()
         viewer.add_geometry(npcs2cam_points, colors=colors)
-        log.info(caption)
-        self.render_options(viewer, data_name + 'difference')
+        self.render_options(viewer, data_name, '_difference')
+        del viewer
 
-    def render(self, show=False, export=None):
+    def render(self, show=False, export=None, export_mesh=False):
         self.show_flag = show
         if self.show_flag:
             self.render_flag = False
         else:
             self.render_flag = True
-        self.export_flag = False if export is None else True
+        self.export_flag = export_mesh
         self.export_dir = export
 
         self.parse_items()
-        log.info(f'Rendering instances {self.items}')
+        bar = Bar(f'Rendering {len(self.items)} instances', max=len(self.items))
         for i, item_name in enumerate(self.items):
             data_group = self.data[item_name]
-            # print(data_group.keys())
+            log.debug(f'Render {item_name}')
+            log.debug(data_group.keys())
             self.viz_npcs2cam(data_group, item_name)
-
+            bar.next()
+        bar.finish()
 
 
 @hydra.main(config_path="../../configs", config_name="preprocess")
