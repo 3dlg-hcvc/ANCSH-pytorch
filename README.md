@@ -60,12 +60,12 @@ optional arguments:
 - Kinematic Constrained Optimization
 ```bash
 # Use kinematic constrained optimization to infer the pred part pose 
-python optimize.py optimization=sapien_urdf paths=shawn_lab ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
+python optimize.py paths=shawn_lab ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
 ```
 - Evalaution
 ```bash
 # Do evalaution
-python evaluate.py evaluation=sapien_urdf paths=shawn_lab combined_result_path=<PATH_TO_COMBINED_REUSLTS>
+python evaluate.py paths=shawn_lab optimization_result_path=<PATH_TO_COMBINED_REUSLTS>
 ```
 
 
