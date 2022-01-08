@@ -333,7 +333,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
             rt[:3, :3] = best_model["rotation0"]
             rt[:3, 3] = best_model["translation0"]
             rt[3, 3] = 1
-            pred_rt.append(rt)
+            pred_rt.append(rt.flatten('F'))
             err_rotation.append(rdiff)
             err_translation.append(tdiff)
             err_scale.append(sdiff)
@@ -346,7 +346,7 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         rt[:3, :3] = best_model["rotation1"]
         rt[:3, 3] = best_model["translation1"]
         rt[3, 3] = 1
-        pred_rt.append(rt)
+        pred_rt.append(rt.flatten('F'))
         err_rotation.append(rdiff)
         err_translation.append(tdiff)
         err_scale.append(sdiff)
