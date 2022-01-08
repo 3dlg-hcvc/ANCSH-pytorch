@@ -2,7 +2,7 @@ network_type: ???
 max_epochs: ???
 lr: 0.001
 batch_size: 16
-num_workers: 4
+num_workers: 8
 num_points: 1024
 
 # Loss weights

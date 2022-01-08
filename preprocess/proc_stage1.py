@@ -6,46 +6,31 @@ import numpy as np
 
 from PIL import Image
 from scipy.spatial.transform import Rotation as R
+from progress.bar import Bar
+from multiprocessing import Pool, cpu_count
+from omegaconf import OmegaConf
 
 from tools.utils import io
-import utils
+from tools.visualization import Viewer
 from utils import DataLoader, URDFReader, DatasetName
 
 log = logging.getLogger('proc_stage1')
 
 
-class ProcStage1:
+class ProcStage1Impl:
     def __init__(self, cfg):
-        self.cfg = cfg
-        self.data_loader = DataLoader(cfg)
-        self.data_loader.parse_input()
-        self.input_cfg = self.cfg.paths.preprocess.stage1.input
-        self.tmp_output = self.cfg.paths.preprocess.stage1.tmp_output
-        self.output_cfg = self.cfg.paths.preprocess.stage1.output
-        self.height = self.cfg.dataset.param.height
-        self.width = self.cfg.dataset.param.width
-        self.debug = self.cfg.debug
-
-    def preprocess_motion_data(self, motion_data_df):
-        for index, motion_data in motion_data_df.iterrows():
-            motion_file_path = os.path.join(self.data_loader.motion_dir, motion_data['objectCat'],
-                                            motion_data['objectId'], motion_data['motion'])
-            assert io.file_exist(motion_file_path), f'Can not found Motion file {motion_file_path}!'
-            if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN or \
-                    DatasetName[self.cfg.dataset.name] == DatasetName.SHAPE2MOTION:
-                urdf_reader = URDFReader(motion_file_path)
-                tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, motion_data['objectCat'],
-                                            motion_data['objectId'], self.tmp_output.folder_name)
-                urdf_reader.export(
-                    result_data_path=tmp_data_dir,
-                    rest_state_data_filename=self.tmp_output.rest_state_data,
-                    rest_state_mesh_filename=self.tmp_output.rest_state_mesh
-                )
+        self.output_path = cfg.output_path
+        self.tmp_dir = cfg.tmp_dir
+        self.render_cfg = cfg.render_cfg
+        self.rest_state_data_filename = cfg.rest_state_data_filename
+        self.width = self.render_cfg.width
+        self.height = self.render_cfg.height
+        self.dataset_name = cfg.dataset_name
 
     def get_metadata(self, metadata_path, frame_index, num_parts):
         metadata = {}
-        if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN or \
-                DatasetName[self.cfg.dataset.name] == DatasetName.SHAPE2MOTION:
+        if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
+                DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
             with open(metadata_path, "r") as meta_file:
                 metadata_all = yaml.load(meta_file, Loader=yaml.Loader)
             frame_metadata = metadata_all[f'frame_{frame_index}']
@@ -69,30 +54,24 @@ class ProcStage1:
 
         return metadata
 
-    def process(self):
-        input_data = self.data_loader.data_info
-        io.ensure_dir_exists(self.cfg.paths.preprocess.tmp_dir)
-        input_data.to_csv(os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.input_files))
-
-        motion_data_df = input_data.drop_duplicates(subset=['objectCat', 'objectId', 'motion'])
-        self.preprocess_motion_data(motion_data_df)
-        io.ensure_dir_exists(self.cfg.paths.preprocess.output_dir)
-        h5file = h5py.File(os.path.join(self.cfg.paths.preprocess.output_dir, self.output_cfg.pcd_data), 'w')
+    def __call__(self, idx, input_data):
+        output_filepath = os.path.splitext(self.output_path)[0] + f'_{idx}' + os.path.splitext(self.output_path)[-1]
+        h5file = h5py.File(output_filepath, 'w')
+        bar = Bar(f'Stage1 Processing chunk {idx}', max=len(input_data))
         for index, input_each in input_data.iterrows():
-            depth_frame_path = os.path.join(self.data_loader.render_dir, input_each['objectCat'],
+            depth_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
                                             input_each['objectId'], input_each['articulationId'],
-                                            self.input_cfg.render.depth_folder, input_each['depthFrame'])
-            mask_frame_path = os.path.join(self.data_loader.render_dir, input_each['objectCat'],
+                                            self.render_cfg.depth_folder, input_each['depthFrame'])
+            mask_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
                                            input_each['objectId'], input_each['articulationId'],
-                                           self.input_cfg.render.mask_folder, input_each['maskFrame'])
-            metadata_path = os.path.join(self.data_loader.render_dir, input_each['objectCat'],
+                                           self.render_cfg.mask_folder, input_each['maskFrame'])
+            metadata_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
                                          input_each['objectId'], input_each['articulationId'],
                                          input_each['metadata'])
-            tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, input_each['objectCat'],
-                                        input_each['objectId'], self.tmp_output.folder_name)
-            rest_state_data_path = os.path.join(tmp_data_dir, self.tmp_output.rest_state_data)
+            tmp_data_dir = os.path.join(self.tmp_dir, input_each['objectCat'], input_each['objectId'])
+            rest_state_data_path = os.path.join(tmp_data_dir, self.rest_state_data_filename)
 
-            frame_index = int(input_each['depthFrame'].split(self.input_cfg.render.depth_ext)[0])
+            frame_index = int(input_each['depthFrame'].split(self.render_cfg.depth_ext)[0])
             # float32 depth buffer, range from 0 to 1
             depth_data = np.array(h5py.File(depth_frame_path, "r")["data"])
             # uint8 mask, invalid value is 255
@@ -148,27 +127,9 @@ class ProcStage1:
             points_world_p3 = points_world.transpose()[:, :3]
             points_rest_state_p3 = points_rest_state.transpose()[:, :3]
 
-            if self.debug:
-                window_name_prefix = f'{input_each["objectCat"]}/{input_each["objectId"]}/' \
-                                     + f'{input_each["articulationId"]}/{frame_index} '
-                utils.visualize_point_cloud(points_camera_p3, link_mask,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_camera %
-                                                                (int(input_each["articulationId"]), frame_index)),
-                                            window_name=window_name_prefix + 'Camera Space', show=False)
-                utils.visualize_point_cloud(points_world_p3, link_mask,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_world %
-                                                                (int(input_each["articulationId"]), frame_index)),
-                                            window_name=window_name_prefix + 'World Space', show=False)
-                utils.visualize_point_cloud(points_rest_state_p3, link_mask,
-                                            export=os.path.join(tmp_data_dir, self.tmp_output.pcd_rest_state %
-                                                                (int(input_each["articulationId"]), frame_index)),
-                                            window_name=window_name_prefix + 'Rest State', show=False)
-
             camera2base_matrix = np.linalg.inv(view_mat).flatten('F')
-            h5cat = h5file.require_group(input_each["objectCat"])
-            h5obj = h5cat.require_group(input_each["objectId"])
-            h5art = h5obj.require_group(input_each["articulationId"])
-            h5frame = h5art.require_group(str(frame_index))
+            instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
+            h5frame = h5file.require_group(instance_name)
             h5frame.create_dataset("mask", shape=link_mask.shape, data=link_mask, compression="gzip")
             h5frame.create_dataset("points_camera", shape=points_camera_p3.shape, data=points_camera_p3,
                                    compression="gzip")
@@ -178,4 +139,111 @@ class ProcStage1:
                                    data=parts_camera2rest_state, compression="gzip")
             h5frame.create_dataset("base_transformation", shape=camera2base_matrix.shape,
                                    data=camera2base_matrix, compression="gzip")
+            bar.next()
+        bar.finish()
         h5file.close()
+        return output_filepath
+
+
+class ProcStage1:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.data_loader = DataLoader(cfg)
+        self.data_loader.parse_input()
+        self.input_cfg = self.cfg.paths.preprocess.stage1.input
+        self.tmp_output = self.cfg.paths.preprocess.stage1.tmp_output
+        self.output_cfg = self.cfg.paths.preprocess.stage1.output
+        self.height = self.cfg.dataset.param.height
+        self.width = self.cfg.dataset.param.width
+        self.debug = self.cfg.debug
+
+    def preprocess_motion_data(self, motion_data_df):
+        bar = Bar('Stage1 Parse Motion Data', max=len(motion_data_df))
+        for index, motion_data in motion_data_df.iterrows():
+            motion_file_path = os.path.join(self.data_loader.motion_dir, motion_data['objectCat'],
+                                            motion_data['objectId'], motion_data['motion'])
+            assert io.file_exist(motion_file_path), f'Can not found Motion file {motion_file_path}!'
+            if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN or \
+                    DatasetName[self.cfg.dataset.name] == DatasetName.SHAPE2MOTION:
+                urdf_reader = URDFReader(motion_file_path)
+                tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name,
+                                            motion_data['objectCat'], motion_data['objectId'])
+                urdf_reader.export(
+                    result_data_path=tmp_data_dir,
+                    rest_state_data_filename=self.tmp_output.rest_state_data,
+                    rest_state_mesh_filename=self.tmp_output.rest_state_mesh
+                )
+            bar.next()
+        bar.finish()
+
+    def process(self):
+        input_data = self.data_loader.data_info
+        io.ensure_dir_exists(self.cfg.paths.preprocess.tmp_dir)
+        input_data.to_csv(os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.input_files))
+
+        motion_data_df = input_data.drop_duplicates(subset=['objectCat', 'objectId', 'motion'])
+        self.preprocess_motion_data(motion_data_df)
+        io.ensure_dir_exists(self.cfg.paths.preprocess.output_dir)
+
+        num_processes = min(cpu_count(), self.cfg.num_workers)
+        # calculate the chunk size
+        chunk_size = max(1, int(input_data.shape[0] / num_processes))
+        chunks = [input_data.iloc[input_data.index[i:i + chunk_size]] for i in
+                  range(0, input_data.shape[0], chunk_size)]
+        log.info(f'Stage1 Processing Start with {num_processes} workers and {len(chunks)} chunks')
+
+        config = OmegaConf.create()
+        config.output_path = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.output_cfg.pcd_data)
+        config.tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+        render_cfg = OmegaConf.create()
+        render_cfg.width = self.width
+        render_cfg.height = self.height
+        render_cfg.render_dir = self.data_loader.render_dir
+        render_cfg.depth_ext = self.input_cfg.render.depth_ext
+        render_cfg.mask_ext = self.input_cfg.render.mask_ext
+        render_cfg.depth_folder = self.input_cfg.render.depth_folder
+        render_cfg.mask_folder = self.input_cfg.render.mask_folder
+        config.render_cfg = render_cfg
+        config.rest_state_data_filename = self.tmp_output.rest_state_data
+        config.dataset_name = self.cfg.dataset.name
+        with Pool(processes=num_processes) as pool:
+            proc_impl = ProcStage1Impl(config)
+            output_filepath_list = pool.starmap(proc_impl, enumerate(chunks))
+
+        output_file_path = os.path.join(self.cfg.paths.preprocess.output_dir, self.output_cfg.pcd_data)
+        h5file = h5py.File(output_file_path, 'w')
+        for filepath in output_filepath_list:
+            with h5py.File(filepath, 'r') as h5f:
+                for key in h5f.keys():
+                    h5f.copy(key, h5file)
+        h5file.close()
+
+        if self.debug:
+            tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+            with h5py.File(output_file_path, 'r') as h5file:
+                bar = Bar('Stage1 Visualization', max=len(h5file.keys()))
+                for key in h5file.keys():
+                    h5group = h5file[key]
+                    folder_names = key.split('_')
+                    viz_output_dir = os.path.join(tmp_dir, folder_names[0], folder_names[1], folder_names[2])
+                    viz_output_filename = key
+                    viz_output_path = os.path.join(viz_output_dir, viz_output_filename)
+
+                    viewer = Viewer(h5group['points_camera'][:], mask=h5group['mask'][:])
+                    if self.cfg.show:
+                        viewer.show(window_name=viz_output_filename+'_points_camera')
+                    else:
+                        viewer.render(fig_path=viz_output_path + '_points_camera.jpg')
+                    if self.cfg.export:
+                        viewer.export(mesh_path=viz_output_path + '_points_camera.ply')
+                    viewer.reset()
+                    viewer.add_geometry(h5group['points_rest_state'][:], mask=h5group['mask'][:])
+                    if self.cfg.show:
+                        viewer.show(window_name=viz_output_filename+'_points_rest_state')
+                    else:
+                        viewer.render(fig_path=viz_output_path + '_points_rest_state.jpg')
+                    if self.cfg.export:
+                        viewer.export(mesh_path=viz_output_path + '_points_rest_state.ply')
+                    del viewer
+                    bar.next()
+                bar.finish()

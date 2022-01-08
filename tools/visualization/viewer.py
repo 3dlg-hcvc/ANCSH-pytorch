@@ -31,8 +31,25 @@ class Viewer:
         self.scene.ambient_light = [1.0, 1.0, 1.0]
         if vertices is not None:
             self.add_geometry(vertices, faces, colors, mask)
+        self.caption = None
+        self.point_size = 10
 
     head_body_ratio = 1.0 / 4
+
+    def reset(self):
+        self.vertices = None
+        self.faces = None
+        self.colors = None
+        self.mask = None
+        self.trimesh = None
+        self.point_cloud = None
+        self.trimesh_list = []
+        self.point_cloud_list = []
+        self.scene = pyrender.Scene()
+        self.scene.ambient_light = [1.0, 1.0, 1.0]
+
+    def add_caption(self, caption):
+        self.caption = caption
 
     @staticmethod
     def rgba_by_index(index, cmap_name='Set1'):
@@ -82,25 +99,6 @@ class Viewer:
             all_colors = colors if all_colors is None else np.vstack((all_colors, colors))
         self.point_cloud = trimesh.points.PointCloud(vertices, colors=colors)
 
-    # def transform_parts(self, part_mask, transformations, scales, mesh_index=0):
-    #     if self.trimesh_list[mesh_index].vertices.shape[0] != part_mask.shape[0]:
-    #         log.error('Number of points in mask does not match the points in mesh')
-    #         return
-    #     part_classes = np.sort(np.unique(part_mask))
-    #     transformed_points = np.empty_like(self.mesh.vertices)
-    #     for part_class in part_classes:
-    #         part_points = self.mesh.vertices[part_mask == part_class]
-    #         scale = scales[part_class]
-    #         part_points_scaled = part_points * scale
-    #         part_transformation = transformations[part_class].reshape((4, 4), order='F')
-    #         part_points_scaled_p4 = np.column_stack((part_points_scaled, np.ones(part_points_scaled.shape[0])))
-    #         part_points_scaled_p4 = part_points_scaled_p4.transpose()
-    #         transformed_part = np.dot(part_transformation, part_points_scaled_p4)
-    #         transformed_part = transformed_part.transpose()[:, :3]
-    #         transformed_points[part_mask == part_class] = transformed_part
-    #
-    #     self.trimesh_list[mesh_index] = trimesh.base.Trimesh(transformed_points, colors=self.mesh.visual.vertex_colors)
-
     @staticmethod
     def draw_arrow(color=None, radius=0.01, length=0.5):
         if color is None:
@@ -116,6 +114,7 @@ class Viewer:
         return arrow
 
     def add_arrows(self, positions, axes, color=None, radius=0.01, length=0.5):
+        log.debug('add arrow')
         transformations = []
         z_axis = [0, 0, 1]
         for i, pos in enumerate(positions):
@@ -127,31 +126,37 @@ class Viewer:
         self.scene.add(arrows)
 
     def add_trimesh_arrows(self, positions, axes, color=None, radius=0.01, length=0.5):
+        log.debug('add trimesh arrow')
         arrows = []
         z_axis = [0, 0, 1]
         for i, pos in enumerate(positions):
+            arrow_length = length if isinstance(length, float) else length[i]
+            if arrow_length < 10e-6:
+                continue
             transformation = trimesh.geometry.align_vectors(z_axis, axes[i])
-            transformation[:3, 3] += pos + axes[i] * (1 - Viewer.head_body_ratio) / 2 * length[i]
-            if isinstance(length, float):
-                arrow = Viewer.draw_arrow(color, radius, length)
-            else:
-                arrow = Viewer.draw_arrow(color, radius, length[i])
+            transformation[:3, 3] += pos + axes[i] * (1 - Viewer.head_body_ratio) / 2 * arrow_length
+            arrow = Viewer.draw_arrow(color, radius, arrow_length)
             arrow.apply_transform(transformation)
             arrows.append(arrow)
         self.trimesh_list += arrows
 
     def _merge_geometries(self):
         if len(self.trimesh_list) > 0:
+            log.debug('concatenate triangle meshes')
             self.trimesh = trimesh.util.concatenate(self.trimesh_list)
-        self.merge_point_clouds()
+        if len(self.point_cloud_list) > 0:
+            log.debug('concatenate point clouds')
+            self.merge_point_clouds()
 
     def _add_geometries_to_scenen(self):
         if self.trimesh is None or self.point_cloud is None:
             self._merge_geometries()
         if self.trimesh is not None:
+            log.debug('add trimesh to scene')
             mesh = pyrender.Mesh.from_trimesh(self.trimesh)
             self.scene.add(mesh)
         if self.point_cloud is not None:
+            log.debug('add point cloud to scene')
             point_cloud = pyrender.Mesh.from_points(self.point_cloud.vertices, colors=self.point_cloud.colors)
             self.scene.add(point_cloud)
 
@@ -159,7 +164,8 @@ class Viewer:
         self._add_geometries_to_scenen()
         if window_size is None:
             window_size = [800, 600]
-        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=8.0)
+        pyrender.Viewer(self.scene, viewport_size=window_size, window_title=window_name, point_size=self.point_size,
+                        caption=self.caption)
 
     def _compute_initial_camera_pose(self):
         centroid = self.scene.centroid
@@ -167,16 +173,20 @@ class Viewer:
         if scale == 0.0:
             scale = DEFAULT_SCENE_SCALE
 
-        # s2 = 1.0 / np.sqrt(2.0)
-        cp = np.eye(4)
-        # cp[:3, :3] = np.array([
-        #     [0.0, -s2, s2],
-        #     [1.0, 0.0, 0.0],
-        #     [0.0, s2, s2]
-        # ])
+        look_at_pos = centroid
         h_fov = np.pi / 6.0
-        dist = scale / (1.5 * np.tan(h_fov))
-        cp[:3, 3] = dist * np.array([0.0, 0.0, 1.0]) + centroid
+        dist = scale / (2 * np.tan(h_fov))
+        camera_pos = dist * np.array([-1.0, 1.0, 1.0]) + centroid
+
+        forward = camera_pos - look_at_pos
+        forward /= np.linalg.norm(forward)
+        world_up = np.array([0, 0, 1])
+        right = np.cross(world_up, forward)
+        up = np.cross(forward, right)
+
+        look_at = np.vstack((right, up, forward, camera_pos))
+        cp = np.eye(4)
+        cp[:3, :4] = look_at.T
 
         return cp
 
@@ -185,7 +195,8 @@ class Viewer:
 
         if fig_size is None:
             fig_size = [1024, 768]
-        renderer = pyrender.OffscreenRenderer(viewport_width=fig_size[0], viewport_height=fig_size[1], point_size=10.0)
+        renderer = pyrender.OffscreenRenderer(viewport_width=fig_size[0], viewport_height=fig_size[1],
+                                              point_size=self.point_size)
         z_far = max(self.scene.scale * 10.0, DEFAULT_Z_FAR)
         if self.scene.scale == 0:
             z_near = DEFAULT_Z_NEAR
@@ -197,6 +208,7 @@ class Viewer:
         self.scene.add_node(cam_node)
         color, depth = renderer.render(self.scene)
         image = Image.fromarray(color.astype('uint8'), 'RGB')
+        io.ensure_dir_exists(os.path.dirname(fig_path))
         image.save(fig_path)
 
         renderer.delete()
@@ -208,6 +220,10 @@ class Viewer:
             self._merge_geometries()
         if self.point_cloud is not None:
             mesh = trimesh.base.Trimesh(self.point_cloud.vertices, vertex_colors=self.point_cloud.colors)
-        if self.trimesh is not None and self.point_cloud is not None:
-            mesh = trimesh.util.concatenate(self.trimesh, mesh)
+        if self.trimesh is not None:
+            if self.point_cloud is not None:
+                mesh = trimesh.util.concatenate(self.trimesh, mesh)
+            else:
+                mesh = self.trimesh
+        io.ensure_dir_exists(os.path.dirname(mesh_path))
         mesh.export(mesh_path)
