@@ -281,9 +281,8 @@ class ProcStage2:
                                                      on=['objectCat', 'objectId', 'articulationId', 'frameId'])
         else:
             # split to train, val, test
-            df_size = len(df_dataset)
             log.info(f'Split on key {split_on}')
-            if df_size:
+            if len(df_dataset):
                 if split_on == 'objectId':
                     split_on_columns = ['objectCat', 'objectId']
                 elif split_on == 'articulationId':
@@ -295,9 +294,11 @@ class ProcStage2:
                     log.warning(f'Cannot parse split_on {split_on}, split on objectId by default')
 
                 val_end = train_percent + (1.0 - train_percent) / 2.0
+                split_df = df_dataset[split_on_columns].drop_duplicates()
+                set_size = len(split_df)
                 train_set, val_set, test_set = np.split(
-                    df_dataset.groupby(split_on_columns).sample(n=1, random_state=seed),
-                    [int(train_percent * df_size), int(val_end * df_size)]
+                    split_df.sample(frac=1.0, random_state=seed),
+                    [int(train_percent * set_size), int(val_end * set_size)]
                 )
                 train = train_set.merge(df_dataset, how='left', on=split_on_columns)
                 val = val_set.merge(df_dataset, how='left', on=split_on_columns)
@@ -316,18 +317,15 @@ class ProcStage2:
             return
         train = self.split_info.loc['train']
         log.info(f'Stage2 Process Train Set {len(train)} instances')
-        self.process_set(train,
-                         os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.train_data))
+        self.process_set(train, self.output_dir, self.cfg.paths.preprocess.stage2.output.train_data)
         val = self.split_info.loc['val']
         log.info(f'Stage2 Process Val Set {len(val)} instances')
-        self.process_set(val,
-                         os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.val_data))
+        self.process_set(val, self.output_dir, self.cfg.paths.preprocess.stage2.output.val_data)
         test = self.split_info.loc['test']
         log.info(f'Stage2 Process Test Set {len(test)} instances')
-        self.process_set(test,
-                         os.path.join(self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data))
+        self.process_set(test, self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data)
 
-    def process_set(self, input_data, output_path):
+    def process_set(self, input_data, output_dir, output_filename):
         # process object info
         object_df = input_data[['objectCat', 'objectId']].drop_duplicates()
         object_infos = {}
@@ -374,10 +372,10 @@ class ProcStage2:
         log.info(f'Stage2 Processing Start with {num_processes} workers and {len(chunks)} chunks')
 
         config = OmegaConf.create()
-        config.output_path = output_path
         config.input_h5_path = self.input_h5_path
         config.stage1_tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.stag1_tmp_output.folder_name)
         config.tmp_output_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+        config.output_path = os.path.join(config.tmp_output_dir, output_filename)
         config.rest_state_data_filename = self.stag1_tmp_output.rest_state_data
         config.object_infos_path = object_infos_path
         config.heatmap_threshold = self.heatmap_threshold
@@ -387,7 +385,8 @@ class ProcStage2:
             proc_impl = ProcStage2Impl(config)
             output_filepath_list = pool.starmap(proc_impl, enumerate(chunks))
 
-        h5file = h5py.File(output_path, 'w')
+        h5_output_path = os.path.join(output_dir, output_filename)
+        h5file = h5py.File(h5_output_path, 'w')
         for filepath in output_filepath_list:
             with h5py.File(filepath, 'r') as h5f:
                 for key in h5f.keys():
@@ -398,7 +397,7 @@ class ProcStage2:
             tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
             io.ensure_dir_exists(tmp_data_dir)
 
-            with h5py.File(output_path, 'r') as h5file:
+            with h5py.File(h5_output_path, 'r') as h5file:
                 visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
                 visualizer.point_size = 5
                 visualizer.arrow_sampling = 10
