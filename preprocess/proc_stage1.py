@@ -193,7 +193,8 @@ class ProcStage1:
         log.info(f'Stage1 Processing Start with {num_processes} workers and {len(chunks)} chunks')
 
         config = OmegaConf.create()
-        config.output_path = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.output_cfg.pcd_data)
+        config.output_path = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name,
+                                          self.output_cfg.pcd_data)
         config.tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
         render_cfg = OmegaConf.create()
         render_cfg.width = self.width
@@ -231,7 +232,7 @@ class ProcStage1:
 
                     viewer = Viewer(h5group['points_camera'][:], mask=h5group['mask'][:])
                     if self.cfg.show:
-                        viewer.show(window_name=viz_output_filename+'_points_camera')
+                        viewer.show(window_name=viz_output_filename + '_points_camera')
                     else:
                         viewer.render(fig_path=viz_output_path + '_points_camera.jpg')
                     if self.cfg.export:
@@ -239,7 +240,7 @@ class ProcStage1:
                     viewer.reset()
                     viewer.add_geometry(h5group['points_rest_state'][:], mask=h5group['mask'][:])
                     if self.cfg.show:
-                        viewer.show(window_name=viz_output_filename+'_points_rest_state')
+                        viewer.show(window_name=viz_output_filename + '_points_rest_state')
                     else:
                         viewer.render(fig_path=viz_output_path + '_points_rest_state.jpg')
                     if self.cfg.export:
