@@ -1,8 +1,11 @@
+import os
 import random
 import torch
 import h5py
 import numpy as np
 from enum import Enum
+from datetime import datetime
+
 from tools.utils import io
 
 
@@ -45,6 +48,22 @@ def get_num_parts(h5_file_path):
     if len(bad_groups) > 0:
         raise ValueError(f'Instances {bad_groups} in {h5_file_path} have different number of parts than {num_parts}')
     return num_parts
+
+
+def get_latest_file_with_datetime(path, folder_prefix, ext, datetime_pattern='%Y-%m-%d_%H-%M-%S'):
+    folders = os.listdir(path)
+    folder_pattern = folder_prefix + datetime_pattern
+    matched_folders = np.asarray([fd for fd in folders if fd.startswith(folder_prefix)
+                                  if len(io.get_file_list(os.path.join(path, fd), ext))])
+    if len(matched_folders) == 0:
+        return '', ''
+    timestamps = np.asarray([int(datetime.strptime(fd, folder_pattern).timestamp() * 1000) for fd in matched_folders])
+    sort_idx = np.argsort(timestamps)
+    matched_folders = matched_folders[sort_idx]
+    latest_folder = matched_folders[-1]
+    files = io.alphanum_ordered_file_list(os.path.join(path, latest_folder), ext=ext)
+    latest_file = files[-1]
+    return latest_folder, latest_file
 
 
 class AvgRecorder(object):

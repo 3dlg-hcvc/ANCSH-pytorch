@@ -28,7 +28,8 @@ class ANCSHTrainer:
         self.device = device
         self.log.info(f"Using device {self.device}")
 
-        self.network_type = network_type
+        self.network_type = NetworkType[network_type] if isinstance(network_type, str) else network_type
+
         self.num_parts = num_parts
         self.max_epochs = cfg.network.max_epochs
         self.model = self.build_model()
@@ -63,6 +64,8 @@ class ANCSHTrainer:
                 num_workers=self.cfg.network.num_workers,
             )
 
+            self.log.info(f'Num {len(self.train_loader)} batches in train loader')
+
         self.test_loader = torch.utils.data.DataLoader(
             ANCSHDataset(
                 self.data_path["test"], num_points=self.cfg.network.num_points
@@ -71,6 +74,7 @@ class ANCSHTrainer:
             shuffle=False,
             num_workers=self.cfg.network.num_workers,
         )
+        self.log.info(f'Num {len(self.train_loader)} batches in test loader')
 
     def train_epoch(self, epoch):
         self.log.info(f'>>>>>>>>>>>>>>>> Train Epoch {epoch} >>>>>>>>>>>>>>>>')
@@ -91,7 +95,6 @@ class ANCSHTrainer:
 
         # if self.train_loader.sampler is not None:
         #     self.train_loader.sampler.set_epoch(epoch)
-        self.log.info(f'Num {len(self.train_loader)} batches')
         for i, (camcs_per_point, gt_dict, id) in enumerate(self.train_loader):
             io_time.update(time() - end_time)
             # Move the tensors to the device
@@ -101,7 +104,7 @@ class ANCSHTrainer:
             for k, v in gt_dict.items():
                 gt[k] = v.to(self.device)
             to_gpu_time.update(time() - s_time)
-            
+
             # Get the loss
             s_time = time()
             pred = self.model(camcs_per_point)
@@ -129,7 +132,7 @@ class ANCSHTrainer:
 
             # time and print
             current_iter = epoch * len(self.train_loader) + i + 1
-            max_iter = (self.max_epochs+1) * len(self.train_loader)
+            max_iter = (self.max_epochs + 1) * len(self.train_loader)
             remain_iter = max_iter - current_iter
 
             iter_time.update(time() - end_time)
@@ -156,8 +159,8 @@ class ANCSHTrainer:
             self.log.info(
                 'Epoch: {}/{} Loss: {} io_time: {:.2f}({:.4f}) to_gpu_time: {:.2f}({:.4f}) network_time: {:.2f}({:.4f}) \
                 duration: {:.2f} remain_time: {}'
-                    .format(epoch, self.max_epochs, loss_log, io_time.sum, io_time.avg, to_gpu_time.sum, to_gpu_time.avg, 
-                    network_time.sum, network_time.avg, time()-start_time, remain_time))
+                    .format(epoch, self.max_epochs, loss_log, io_time.sum, io_time.avg, to_gpu_time.sum,
+                            to_gpu_time.avg, network_time.sum, network_time.avg, time() - start_time, remain_time))
 
     def eval_epoch(self, epoch, save_results=False):
         self.log.info(f'>>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>')
@@ -167,9 +170,9 @@ class ANCSHTrainer:
         if save_results:
             io.ensure_dir_exists(self.cfg.paths.network.test.output_dir)
             inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
-                                          self.network_type + '_' + self.cfg.paths.network.test.inference_result)
+                                          self.network_type.value + '_' + self.cfg.paths.network.test.inference_result)
             self.test_result = h5py.File(inference_path, "w")
-            self.test_result.attrs["network_type"] = self.network_type
+            self.test_result.attrs["network_type"] = self.network_type.value
 
         # test the model on the val set and write the results into tensorboard
         self.model.eval()
@@ -255,7 +258,15 @@ class ANCSHTrainer:
                     )
         self.writer.close()
 
+    def get_latest_model_path(self):
+        train_result_dir = os.path.dirname(self.cfg.paths.network.train.output_dir)
+        folder, filename = utils.get_latest_file_with_datetime(train_result_dir,
+                                                               self.network_type.value + '_', ext='.pth')
+        return os.path.join(train_result_dir, folder, filename)
+
     def test(self, inference_model):
+        if not inference_model or not io.file_exist(inference_model):
+            inference_model = self.get_latest_model_path()
         # Load the model
         self.log.info(f"Load model from {inference_model}")
         checkpoint = torch.load(inference_model, map_location=self.device)
@@ -282,7 +293,7 @@ class ANCSHTrainer:
             segmentations, npcs_points = utils.get_prediction_vertices(raw_segmentations, raw_npcs_points)
             group.create_dataset('pred_seg_per_point', data=segmentations, compression="gzip")
             group.create_dataset('pred_npcs_per_point', data=npcs_points, compression="gzip")
-            if NetworkType[self.network_type] == NetworkType.ANCSH:
+            if self.network_type == NetworkType.ANCSH:
                 raw_naocs_points = pred['naocs_per_point'][b].detach().cpu().numpy()
                 _, naocs_points = utils.get_prediction_vertices(raw_segmentations, raw_naocs_points)
                 raw_joint_associations = pred['joint_cls_per_point'][b].detach().cpu().numpy()
@@ -303,12 +314,18 @@ class ANCSHTrainer:
                     f"gt_{k}", data=gt[k][b].detach().cpu().numpy(), compression="gzip"
                 )
 
-    def resume_train(self, model_path):
-        self.log.info(f"Load model from {model_path}")
+    def resume_train(self, model_path=None):
+        if not model_path or not io.file_exist(model_path):
+            model_path = self.get_latest_model_path()
         # Load the model
-        checkpoint = torch.load(model_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        self.model.to(self.device)
+        if io.is_non_zero_file(model_path):
+            checkpoint = torch.load(model_path, map_location=self.device)
+            epoch = checkpoint["epoch"]
+            self.log.info(f"Continue training with model from {model_path} at epoch {epoch}")
+            self.model.load_state_dict(checkpoint["model_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.model.to(self.device)
+        else:
+            epoch = 0
 
-        self.train()
+        self.train(epoch)
