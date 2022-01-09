@@ -1,7 +1,9 @@
 import random
 import torch
+import h5py
 import numpy as np
 from enum import Enum
+from tools.utils import io
 
 
 class NetworkType(Enum):
@@ -28,6 +30,21 @@ def get_prediction_vertices(pred_segmentation, pred_coordinates):
         np.arange(pred_coordinates.shape[0]).reshape(-1, 1),
         np.arange(3) + 3 * np.tile(segmentations.reshape(-1, 1), [1, 3])]
     return segmentations, coordinates
+
+
+def get_num_parts(h5_file_path):
+    if not io.file_exist(h5_file_path):
+        raise IOError(f'Cannot open file {h5_file_path}')
+    input_h5 = h5py.File(h5_file_path, 'r')
+    num_parts = input_h5[list(input_h5.keys())[0]].attrs['numParts']
+    bad_groups = []
+    visit_groups = lambda name, node: bad_groups.append(name) if isinstance(node, h5py.Group) and node.attrs[
+        'numParts'] != num_parts else None
+    input_h5.visititems(visit_groups)
+    input_h5.close()
+    if len(bad_groups) > 0:
+        raise ValueError(f'Instances {bad_groups} in {h5_file_path} have different number of parts than {num_parts}')
+    return num_parts
 
 
 class AvgRecorder(object):

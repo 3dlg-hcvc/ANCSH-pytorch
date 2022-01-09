@@ -3,9 +3,15 @@ version: "v1.0"
 ancsh_results_path: ???
 npcs_results_path: ???
 random_seed: 42
+num_workers: 8
+
+render:
+  render: true
+  show: false
+  export: false
 
 defaults:
-  - paths: ???
+  - paths: default
   - optimization: default
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 

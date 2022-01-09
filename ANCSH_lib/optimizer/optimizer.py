@@ -6,6 +6,8 @@ import logging
 
 from ANCSH_lib.optimizer.optimize_util import optimize_with_kinematic
 from tools.utils import io
+from tools.visualization import OptimizerVisualizer
+
 
 def h5_dict(ins):
     result = {}
@@ -62,7 +64,7 @@ class ANCSHOptimizer:
         errs_translation = np.array(
             [result["err_translation"] for result in self.results]
         )
-        
+
         mean_err_rotation = np.mean(errs_rotation, axis=0)
         mean_err_translation = np.mean(errs_translation, axis=0)
         # Calculate the accuaracy for err_rotation < 5 degree
@@ -81,10 +83,9 @@ class ANCSHOptimizer:
         )
 
         io.ensure_dir_exists(self.cfg.paths.optimization.output_dir)
-        f = h5py.File(
-            os.path.join(self.cfg.paths.optimization.output_dir, self.cfg.paths.optimization.optimization_result_path),
-            "w"
-        )
+        optimization_result_path = os.path.join(self.cfg.paths.optimization.output_dir,
+                                                self.cfg.paths.optimization.optimization_result_path)
+        f = h5py.File(optimization_result_path, "w")
         # Record the errors
         f.attrs["err_pose_rotation"] = mean_err_rotation
         f.attrs["err_pose_translation"] = mean_err_translation
@@ -103,3 +104,12 @@ class ANCSHOptimizer:
                     group.create_dataset(k, data=v, compression="gzip")
             for k, v in result.items():
                 group.create_dataset(k, data=v, compression="gzip")
+        f.close()
+
+        render_cfg = self.cfg.render
+        if render_cfg.render:
+            with h5py.File(optimization_result_path, "r") as h5file:
+                visualizer = OptimizerVisualizer(h5file)
+                export_dir = os.path.join(self.cfg.paths.optimization.output_dir,
+                                          self.cfg.paths.optimization.visualization_folder)
+                visualizer.render(show=render_cfg.show, export=export_dir, export_mesh=render_cfg.export)

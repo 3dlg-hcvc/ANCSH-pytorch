@@ -52,6 +52,7 @@ network:
 optimization:
   output_dir: "${paths.result_dir}/optimization/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"
   optimization_result_path: "optimization_result.h5"
+  visualization_folder: "visualization"
 
 evaluation:
   output_dir: "${paths.result_dir}/evaluation/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"

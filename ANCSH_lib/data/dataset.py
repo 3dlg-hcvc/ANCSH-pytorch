@@ -18,17 +18,23 @@ class ANCSHDataset(Dataset):
         ins = self.f_data[id]
 
         # Get the points index used to sample points
-        perm = np.random.permutation(ins["camcs_per_point"].shape[0])
+        input_points = ins['camcs_per_point'][:]
+        input_points_num = input_points.shape[0]
+        perm = np.random.permutation(input_points_num)[:self.num_points]
+        if self.num_points > input_points_num:
+            additional = np.random.choice(input_points_num, self.num_points - input_points_num, replace=True)
+            perm = np.concatenate((perm, additional))
+        assert perm.shape[0] == self.num_points, f'{perm.shape[0]}, {self.num_points}, {input_points_num}'
 
         # Get the camcs_per_point
-        camcs_per_point = torch.tensor(ins["camcs_per_point"][:], dtype=torch.float32)[perm[:self.num_points]]
+        camcs_per_point = torch.tensor(input_points, dtype=torch.float32)[perm]
         # Get all other items 
         gt_dict = {}
         for k, v in ins.items():
             if k == "camcs_per_point":
                 continue
             elif "per_point" in k:
-                gt_dict[k] = torch.tensor(v[:], dtype=torch.float32)[perm[:self.num_points]]
+                gt_dict[k] = torch.tensor(v[:], dtype=torch.float32)[perm]
             else:
                 gt_dict[k] = torch.tensor(v[:], dtype=torch.float32)
 

@@ -3,4 +3,4 @@ defaults:
   - _self_ 
 
 network_type: "NPCS"
-max_epochs: 6000
+max_epochs: 1200

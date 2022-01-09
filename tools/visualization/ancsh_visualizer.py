@@ -188,7 +188,7 @@ class OptimizerVisualizer:
     def viz_npcs2cam(self, data_group, data_name):
         segmentations = data_group['pred_seg_per_point'][:]
         npcs_points = data_group['pred_npcs_per_point'][:]
-        npcs2cam_rt = data_group['gt_npcs2cam_rt'][:]
+        npcs2cam_rt = data_group['pred_npcs2cam_rt'][:]
         npcs2cam_scale = data_group['pred_npcs2cam_scale'][:]
         camera_points = data_group['camcs_per_point'][:]
         npcs2cam_points = np.empty_like(npcs_points)
@@ -226,6 +226,7 @@ class OptimizerVisualizer:
             data_group = self.data[item_name]
             log.debug(f'Render {item_name}')
             log.debug(data_group.keys())
+            log.debug(data_group.attrs)
             self.viz_npcs2cam(data_group, item_name)
             bar.next()
         bar.finish()
