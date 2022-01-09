@@ -19,12 +19,12 @@ class ANCSHDataset(Dataset):
 
         # Get the points index used to sample points
         input_points = ins['camcs_per_point'][:]
-        input_points_num = min(input_points.shape[0], self.num_points)
-        perm = np.random.permutation(input_points_num)
+        input_points_num = input_points.shape[0]
+        perm = np.random.permutation(input_points_num)[:self.num_points]
         if self.num_points > input_points_num:
-            additional = np.random.choice(input_points_num, self.num_points - input_points_num, replace=False)
+            additional = np.random.choice(input_points_num, self.num_points - input_points_num, replace=True)
             perm = np.concatenate((perm, additional))
-        assert perm.shape[0] == self.num_points
+        assert perm.shape[0] == self.num_points, f'{perm.shape[0]}, {self.num_points}, {input_points_num}'
 
         # Get the camcs_per_point
         camcs_per_point = torch.tensor(input_points, dtype=torch.float32)[perm]

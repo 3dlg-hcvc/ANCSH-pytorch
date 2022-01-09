@@ -79,6 +79,8 @@ class ANCSHTrainer:
 
         iter_time = AvgRecorder()
         io_time = AvgRecorder()
+        to_gpu_time = AvgRecorder()
+        network_time = AvgRecorder()
         start_time = time()
         end_time = time()
         remain_time = ''
@@ -89,17 +91,22 @@ class ANCSHTrainer:
 
         # if self.train_loader.sampler is not None:
         #     self.train_loader.sampler.set_epoch(epoch)
-
+        self.log.info(f'Num {len(self.train_loader)} batches')
         for i, (camcs_per_point, gt_dict, id) in enumerate(self.train_loader):
             io_time.update(time() - end_time)
             # Move the tensors to the device
+            s_time = time()
             camcs_per_point = camcs_per_point.to(self.device)
             gt = {}
             for k, v in gt_dict.items():
                 gt[k] = v.to(self.device)
+            to_gpu_time.update(time() - s_time)
+            
             # Get the loss
+            s_time = time()
             pred = self.model(camcs_per_point)
             loss_dict = self.model.losses(pred, gt)
+            network_time.update(time() - s_time)
 
             loss = torch.tensor(0.0, device=self.device)
             loss_weight = self.cfg.network.loss_weight
@@ -147,8 +154,10 @@ class ANCSHTrainer:
                 loss_log += '{}: {:.5f}  '.format(k, v.avg)
 
             self.log.info(
-                'Epoch: {}/{} Loss: {} io_time: {:.2f}({:.2f}) duration: {:.2f} remain_time: {}'
-                    .format(epoch, self.max_epochs, loss_log, io_time.val, io_time.avg, time()-start_time, remain_time))
+                'Epoch: {}/{} Loss: {} io_time: {:.2f}({:.4f}) to_gpu_time: {:.2f}({:.4f}) network_time: {:.2f}({:.4f}) \
+                duration: {:.2f} remain_time: {}'
+                    .format(epoch, self.max_epochs, loss_log, io_time.sum, io_time.avg, to_gpu_time.sum, to_gpu_time.avg, 
+                    network_time.sum, network_time.avg, time()-start_time, remain_time))
 
     def eval_epoch(self, epoch, save_results=False):
         self.log.info(f'>>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>')
