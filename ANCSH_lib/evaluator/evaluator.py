@@ -1,9 +1,8 @@
 import os
 import h5py
 import itertools
-
-import numpy as np
 import logging
+import numpy as np
 
 from tools.utils import io
 
@@ -106,40 +105,36 @@ class ANCSHEvaluator:
         self.log = logging.getLogger('evaluator')
         self.results = {}
 
-    def process_ANCSH(self):
+    def process_ANCSH(self, gt=False):
         self.results = []
         for instance in self.instances:
             ins_combined = self.f_combined[instance]
             # Get the useful information from the combined_results
-            pred_seg_per_point = ins_combined["pred_seg_per_point"][:]
-            pred_npcs_per_point = ins_combined["pred_npcs_per_point"][:]
-            pred_naocs_per_point = ins_combined["pred_naocs_per_point"][:]
-            # pred_seg_per_point = ins_combined["gt_seg_per_point"][:]
-            # pred_npcs_per_point = ins_combined["gt_npcs_per_point"][:]
-            # pred_naocs_per_point = ins_combined["gt_naocs_per_point"][:]
+            prefix = 'pred_' if not gt else 'gt_'
+
+            pred_seg_per_point = ins_combined[f"{prefix}seg_per_point"][:]
+            pred_npcs_per_point = ins_combined[f"{prefix}npcs_per_point"][:]
+            pred_naocs_per_point = ins_combined[f"{prefix}naocs_per_point"][:]
+
             gt_naocs_per_point = ins_combined["gt_naocs_per_point"][:]
 
-            pred_unitvec_per_point = ins_combined["pred_unitvec_per_point"][:]
-            # pred_unitvec_per_point = ins_combined["gt_unitvec_per_point"][:]
+            pred_unitvec_per_point = ins_combined[f"{prefix}unitvec_per_point"][:]
+            pred_heatmap_per_point = ins_combined[f"{prefix}heatmap_per_point"][:]
+            pred_axis_per_point = ins_combined[f"{prefix}axis_per_point"][:]
+            pred_joint_cls_per_point = ins_combined[f"{prefix}joint_cls_per_point"][:]
+
             gt_unitvec_per_point = ins_combined["gt_unitvec_per_point"][:]
-            pred_heatmap_per_point = ins_combined["pred_heatmap_per_point"][:]
-            # pred_heatmap_per_point = ins_combined["gt_heatmap_per_point"][:]
             gt_heatmap_per_point = ins_combined["gt_heatmap_per_point"][:]
-            pred_axis_per_point = ins_combined["pred_axis_per_point"][:]
-            # pred_axis_per_point = ins_combined["gt_axis_per_point"][:]
             gt_axis_per_point = ins_combined["gt_axis_per_point"][:]
-            pred_joint_cls_per_point = ins_combined["pred_joint_cls_per_point"][:]
-            # pred_joint_cls_per_point = ins_combined["gt_joint_cls_per_point"][:]
             gt_joint_cls_per_point = ins_combined["gt_joint_cls_per_point"][:]
 
             gt_npcs_scale = ins_combined["gt_npcs2cam_scale"][:]
             gt_npcs_rt = ins_combined["gt_npcs2cam_rt"][:]
             gt_naocs_scale = ins_combined["gt_naocs2cam_scale"][:]
             gt_naocs_rt = ins_combined["gt_naocs2cam_rt"][:]
-            pred_npcs_scale = ins_combined["pred_npcs2cam_scale"][:]
-            pred_npcs_rt = ins_combined["pred_npcs2cam_rt"][:]
-            # pred_npcs_scale = ins_combined["gt_npcs2cam_scale"][:]
-            # pred_npcs_rt = ins_combined["gt_npcs2cam_rt"][:]
+
+            pred_npcs_scale = ins_combined[f"{prefix}npcs2cam_scale"][:]
+            pred_npcs_rt = ins_combined[f"{prefix}npcs2cam_rt"][:]
 
             gt_jointIndex_per_point = gt_joint_cls_per_point
 

@@ -263,19 +263,16 @@ def rot_diff_rad(rot1, rot2):
     theta = np.clip(( np.trace(np.matmul(rot1, rot2.T)) - 1 ) / 2, a_min=-1.0, a_max=1.0)
     return np.arccos( theta ) % (2*np.pi)
 
-def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold):
+def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold, gt=False):
+    prefix = 'gt_' if gt else 'pred_'
     camcs_per_point = ins_ancsh["camcs_per_point"]
     gt_joint_type = ins_ancsh["gt_joint_type"]
     # Get the predicted segmentation and npcs from the NPCS model results
-    pred_npcs_per_point = ins_npcs["pred_npcs_per_point"]
-    pred_seg_per_point = ins_npcs["pred_seg_per_point"]
-    # pred_npcs_per_point = ins_npcs["gt_npcs_per_point"]
-    # pred_seg_per_point = ins_npcs["gt_seg_per_point"]
+    pred_npcs_per_point = ins_npcs[f"{prefix}npcs_per_point"]
+    pred_seg_per_point = ins_npcs[f"{prefix}seg_per_point"]
     # Get the joint prediction from ANCSH model results
-    pred_joint_cls_per_point = ins_ancsh["pred_joint_cls_per_point"]
-    pred_axis_per_point = ins_ancsh["pred_axis_per_point"]
-    # pred_joint_cls_per_point = ins_ancsh["gt_joint_cls_per_point"]
-    # pred_axis_per_point = ins_ancsh["gt_axis_per_point"]
+    pred_joint_cls_per_point = ins_ancsh[f"{prefix}joint_cls_per_point"]
+    pred_axis_per_point = ins_ancsh[f"{prefix}axis_per_point"]
     # Get the gt pose for npcs2cam
     gt_rt = ins_ancsh["gt_npcs2cam_rt"]
     gt_scale = ins_ancsh["gt_npcs2cam_scale"]
