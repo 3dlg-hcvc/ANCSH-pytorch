@@ -1,2 +1,2 @@
 from .viewer import Viewer
-from .ancsh_visualizer import ANCSHVisualizer
+from .ancsh_visualizer import ANCSHVisualizer, OptimizerVisualizer
