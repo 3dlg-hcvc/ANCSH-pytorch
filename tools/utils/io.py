@@ -55,6 +55,21 @@ def make_clean_folder(path_folder):
             raise
 
 
+def get_file_list(path, ext='', join_path=False):
+    file_list = []
+    if not os.path.exists(path):
+        return file_list
+
+    for filename in os.listdir(path):
+        file_ext = file_extension(filename)
+        if (ext in file_ext or not ext) and os.path.isfile(os.path.join(path, filename)):
+            if join_path:
+                file_list.append(os.path.join(path, filename))
+            else:
+                file_list.append(filename)
+    return file_list
+
+
 def sorted_alphanum(path_list, return_indices=False):
     """sort the path list by arrange the numbers in path in increasing order
     :param path_list: a path list
@@ -84,14 +99,7 @@ def alphanum_ordered_file_list(path, ext='', join_path=False):
     if not os.path.exists(path):
         raise OSError('Path {} not exist!'.format(path))
 
-    file_list = []
-    for filename in os.listdir(path):
-        file_ext = file_extension(filename)
-        if (ext in file_ext or not ext) and os.path.isfile(os.path.join(path, filename)):
-            if join_path:
-                file_list.append(os.path.join(path, filename))
-            else:
-                file_list.append(filename)
+    file_list = get_file_list(path, ext, join_path)
     file_list = sorted_alphanum(file_list)
     return file_list
 

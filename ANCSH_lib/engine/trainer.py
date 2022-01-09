@@ -64,6 +64,8 @@ class ANCSHTrainer:
                 num_workers=self.cfg.network.num_workers,
             )
 
+            self.log.info(f'Num {len(self.train_loader)} batches in train loader')
+
         self.test_loader = torch.utils.data.DataLoader(
             ANCSHDataset(
                 self.data_path["test"], num_points=self.cfg.network.num_points
@@ -72,6 +74,7 @@ class ANCSHTrainer:
             shuffle=False,
             num_workers=self.cfg.network.num_workers,
         )
+        self.log.info(f'Num {len(self.train_loader)} batches in test loader')
 
     def train_epoch(self, epoch):
         self.log.info(f'>>>>>>>>>>>>>>>> Train Epoch {epoch} >>>>>>>>>>>>>>>>')
@@ -80,6 +83,8 @@ class ANCSHTrainer:
 
         iter_time = AvgRecorder()
         io_time = AvgRecorder()
+        to_gpu_time = AvgRecorder()
+        network_time = AvgRecorder()
         start_time = time()
         end_time = time()
         remain_time = ''
@@ -90,17 +95,21 @@ class ANCSHTrainer:
 
         # if self.train_loader.sampler is not None:
         #     self.train_loader.sampler.set_epoch(epoch)
-
         for i, (camcs_per_point, gt_dict, id) in enumerate(self.train_loader):
             io_time.update(time() - end_time)
             # Move the tensors to the device
+            s_time = time()
             camcs_per_point = camcs_per_point.to(self.device)
             gt = {}
             for k, v in gt_dict.items():
                 gt[k] = v.to(self.device)
+            to_gpu_time.update(time() - s_time)
+
             # Get the loss
+            s_time = time()
             pred = self.model(camcs_per_point)
             loss_dict = self.model.losses(pred, gt)
+            network_time.update(time() - s_time)
 
             loss = torch.tensor(0.0, device=self.device)
             loss_weight = self.cfg.network.loss_weight
@@ -148,9 +157,10 @@ class ANCSHTrainer:
                 loss_log += '{}: {:.5f}  '.format(k, v.avg)
 
             self.log.info(
-                'Epoch: {}/{} Loss: {} io_time: {:.2f}({:.2f}) duration: {:.2f} remain_time: {}'
-                    .format(epoch, self.max_epochs, loss_log, io_time.val, io_time.avg, time() - start_time,
-                            remain_time))
+                'Epoch: {}/{} Loss: {} io_time: {:.2f}({:.4f}) to_gpu_time: {:.2f}({:.4f}) network_time: {:.2f}({:.4f}) \
+                duration: {:.2f} remain_time: {}'
+                    .format(epoch, self.max_epochs, loss_log, io_time.sum, io_time.avg, to_gpu_time.sum,
+                            to_gpu_time.avg, network_time.sum, network_time.avg, time() - start_time, remain_time))
 
     def eval_epoch(self, epoch, save_results=False):
         self.log.info(f'>>>>>>>>>>>>>>>> Start Evaluation >>>>>>>>>>>>>>>>')
@@ -306,10 +316,7 @@ class ANCSHTrainer:
 
     def resume_train(self, model_path=None):
         if not model_path or not io.file_exist(model_path):
-            train_result_dir = os.path.dirname(self.cfg.paths.network.train.output_dir)
-            folder, filename = utils.get_latest_file_with_datetime(train_result_dir,
-                                                                   self.network_type.value + '_', ext='.pth')
-            model_path = os.path.join(train_result_dir, folder, filename)
+            model_path = self.get_latest_model_path()
         # Load the model
         if io.is_non_zero_file(model_path):
             checkpoint = torch.load(model_path, map_location=self.device)

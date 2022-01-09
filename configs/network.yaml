@@ -9,7 +9,7 @@ train:
   continuous: true
   input_data: path
   input_model: path
-  save_frequency: 500
+  save_frequency: 100
   log_frequency: 10
 
 test:

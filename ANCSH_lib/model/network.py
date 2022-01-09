@@ -87,7 +87,7 @@ class ANCSH(nn.Module):
             # Calculate the NAOCS per point
             pred_scale_per_point_repeat = pred_scale_per_point.repeat(1, 1, 3)
             pred_naocs_per_point = (
-                pred_npcs_per_point * pred_scale_per_point_repeat + pred_trans_per_point
+                    pred_npcs_per_point * pred_scale_per_point_repeat + pred_trans_per_point
             )
 
         pred = {
@@ -139,7 +139,7 @@ class ANCSH(nn.Module):
             gt_joint_mask = (gt["joint_cls_per_point"] > 0).float()
             # Get the heatmap and unitvec map, the loss should only be calculated for revolute joint
             gt_revolute_mask = torch.zeros_like(gt["joint_cls_per_point"]) == 1
-            revolute_index = torch.where(gt["joint_type"] == 1)[0]
+            revolute_index = torch.where(gt["joint_type"][0] == 1)[0]
             assert (gt["joint_type"][:, 0] == -1).all() == True
             for i in revolute_index:
                 gt_revolute_mask = torch.logical_or(gt_revolute_mask, (gt["joint_cls_per_point"] == i))

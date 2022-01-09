@@ -53,7 +53,8 @@ def get_num_parts(h5_file_path):
 def get_latest_file_with_datetime(path, folder_prefix, ext, datetime_pattern='%Y-%m-%d_%H-%M-%S'):
     folders = os.listdir(path)
     folder_pattern = folder_prefix + datetime_pattern
-    matched_folders = np.asarray([fd for fd in folders if fd.startswith(folder_prefix)])
+    matched_folders = np.asarray([fd for fd in folders if fd.startswith(folder_prefix)
+                                  if len(io.get_file_list(os.path.join(path, fd), ext))])
     if len(matched_folders) == 0:
         return '', ''
     timestamps = np.asarray([int(datetime.strptime(fd, folder_pattern).timestamp() * 1000) for fd in matched_folders])
