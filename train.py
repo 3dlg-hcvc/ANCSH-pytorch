@@ -9,6 +9,7 @@ from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 
 from ANCSH_lib import ANCSHTrainer, utils
+from ANCSH_lib.utils import NetworkType
 from tools.utils import io
 
 log = logging.getLogger('train')
@@ -28,7 +29,7 @@ def main(cfg: DictConfig):
     assert num_parts == test_num_parts
     log.info(f'Instances in dataset have {num_parts} parts')
 
-    network_type = cfg.network.network_type
+    network_type = NetworkType[cfg.network.network_type]
 
     utils.set_random_seed(cfg.random_seed)
     torch.set_deterministic(True)
@@ -43,7 +44,10 @@ def main(cfg: DictConfig):
     )
     if not cfg.eval_only:
         log.info(f'Train on {train_path}, validate on {test_path}')
-        trainer.train()
+        if not cfg.train.continuous:
+            trainer.train()
+        else:
+            trainer.resume_train(cfg.train.input_model)
     else:
         log.info(f'Test on {test_path} with inference model {cfg.test.inference_model}')
         if io.file_exist(cfg.test.inference_model):

@@ -19,10 +19,10 @@ class ANCSHDataset(Dataset):
 
         # Get the points index used to sample points
         input_points = ins['camcs_per_point'][:]
-        input_points_num = min(input_points.shape[0], self.num_points)
-        perm = np.random.permutation(input_points_num)
+        input_points_num = input_points.shape[0]
+        perm = np.random.permutation(input_points_num)[:self.num_points]
         if self.num_points > input_points_num:
-            additional = np.random.choice(input_points_num, self.num_points - input_points_num, replace=False)
+            additional = np.random.permutation(input_points_num)[:self.num_points-input_points_num]
             perm = np.concatenate((perm, additional))
         assert perm.shape[0] == self.num_points
 

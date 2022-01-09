@@ -6,6 +6,7 @@ eval_only: false
 random_seed: 42
 
 train:
+  continuous: true
   input_data: path
   input_model: path
   save_frequency: 500

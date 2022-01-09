@@ -9,12 +9,12 @@ from ANCSH_lib.utils import NetworkType
 class ANCSH(nn.Module):
     def __init__(self, network_type, num_parts):
         super().__init__()
-        self.network_type = network_type
+        self.network_type = NetworkType[network_type] if isinstance(network_type, str) else network_type
 
         # Define the shared PN++
         self.backbone = PointNet2()
 
-        if NetworkType[self.network_type] == NetworkType.ANCSH:
+        if self.network_type == NetworkType.ANCSH:
             # segmentation branch
             self.seg_layer = nn.Conv1d(128, num_parts, kernel_size=1, padding=0)
             # NPCS branch
@@ -47,7 +47,7 @@ class ANCSH(nn.Module):
             self.joint_cls_layer = nn.Conv1d(
                 128, num_parts, kernel_size=1, padding=0
             )
-        elif NetworkType[self.network_type] == NetworkType.NPCS:
+        elif self.network_type == NetworkType.NPCS:
             # segmentation branch
             self.seg_layer = nn.Conv1d(128, num_parts, kernel_size=1, padding=0)
             # NPCS branch
@@ -55,13 +55,13 @@ class ANCSH(nn.Module):
                 128, 3 * num_parts, kernel_size=1, padding=0
             )
         else:
-            raise ValueError(f"No implementation for the network type {self.network_type}")
+            raise ValueError(f"No implementation for the network type {self.network_type.value}")
 
     def forward(self, input):
         features = self.backbone(input)
         pred_seg_per_point = self.seg_layer(features).transpose(1, 2)
         pred_npcs_per_point = self.npcs_layer(features).transpose(1, 2)
-        if NetworkType[self.network_type] == NetworkType.ANCSH:
+        if self.network_type == NetworkType.ANCSH:
             pred_scale_per_point = self.scale_layer(features).transpose(1, 2)
             pred_trans_per_point = self.trans_layer(features).transpose(1, 2)
 
@@ -75,7 +75,7 @@ class ANCSH(nn.Module):
         pred_seg_per_point = F.softmax(pred_seg_per_point, dim=2)
         pred_npcs_per_point = F.sigmoid(pred_npcs_per_point)
 
-        if NetworkType[self.network_type] == NetworkType.ANCSH:
+        if self.network_type == NetworkType.ANCSH:
             pred_scale_per_point = F.sigmoid(pred_scale_per_point)
             pred_trans_per_point = F.tanh(pred_trans_per_point)
 
@@ -95,7 +95,7 @@ class ANCSH(nn.Module):
             "npcs_per_point": pred_npcs_per_point,
         }
 
-        if NetworkType[self.network_type] == NetworkType.ANCSH:
+        if self.network_type == NetworkType.ANCSH:
             pred.update(
                 {
                     "heatmap_per_point": pred_heatmap_per_point,
@@ -124,7 +124,7 @@ class ANCSH(nn.Module):
             num_parts=num_parts,
             gt_seg_onehot=gt_seg_onehot,
         )
-        if NetworkType[self.network_type] == NetworkType.ANCSH:
+        if self.network_type == NetworkType.ANCSH:
             # pred['naocs_per_point']: B*N*3K, gt['naocs_per_point']: B*N*3, gt_seg_onehot: B*N*K
             naocs_loss = loss.compute_coorindate_loss(
                 pred["naocs_per_point"],
@@ -140,7 +140,7 @@ class ANCSH(nn.Module):
             # Get the heatmap and unitvec map, the loss should only be calculated for revolute joint
             gt_revolute_mask = torch.zeros_like(gt["joint_cls_per_point"]) == 1
             revolute_index = torch.where(gt["joint_type"] == 1)[0]
-            assert (gt["joint_type"][:, 0]==-1).all() == True
+            assert (gt["joint_type"][:, 0] == -1).all() == True
             for i in revolute_index:
                 gt_revolute_mask = torch.logical_or(gt_revolute_mask, (gt["joint_cls_per_point"] == i))
             gt_revolute_mask = gt_revolute_mask.float()
@@ -170,7 +170,7 @@ class ANCSH(nn.Module):
             "npcs_loss": npcs_loss,
         }
 
-        if NetworkType[self.network_type] == NetworkType.ANCSH:
+        if self.network_type == NetworkType.ANCSH:
             loss_dict.update(
                 {
                     "naocs_loss": naocs_loss,
