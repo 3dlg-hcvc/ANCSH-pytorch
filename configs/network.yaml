@@ -16,6 +16,10 @@ test:
   split: "val"
   input_data: path
   inference_model: path
+  render:
+      render: true
+      show: false
+      export: false
 
 
 defaults:

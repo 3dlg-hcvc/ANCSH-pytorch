@@ -48,6 +48,7 @@ network:
   test:
     output_dir: "${paths.network.output_dir}/test/${network.network_type}_${now:%Y-%m-%d}_${now:%H-%M-%S}"
     inference_result: "inference_result.h5"
+    visualization_folder: "visualization"
     
 optimization:
   output_dir: "${paths.result_dir}/optimization/combined_${now:%Y-%m-%d}_${now:%H-%M-%S}"

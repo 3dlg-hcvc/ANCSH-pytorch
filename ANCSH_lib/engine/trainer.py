@@ -14,6 +14,7 @@ from ANCSH_lib.data import ANCSHDataset
 from ANCSH_lib import utils
 from ANCSH_lib.utils import AvgRecorder, NetworkType
 from tools.utils import io
+from tools.visualization import ANCSHVisualizer
 
 
 class ANCSHTrainer:
@@ -258,15 +259,20 @@ class ANCSHTrainer:
                     )
         self.writer.close()
 
-    def get_latest_model_path(self):
+    def get_latest_model_path(self, with_best=False):
         train_result_dir = os.path.dirname(self.cfg.paths.network.train.output_dir)
         folder, filename = utils.get_latest_file_with_datetime(train_result_dir,
                                                                self.network_type.value + '_', ext='.pth')
-        return os.path.join(train_result_dir, folder, filename)
+        model_path = os.path.join(train_result_dir, folder, filename)
+        if with_best:
+            model_path = os.path.join(train_result_dir, folder, self.cfg.paths.network.train.best_model_filename)
+        return model_path
 
-    def test(self, inference_model):
+    def test(self, inference_model=None):
         if not inference_model or not io.file_exist(inference_model):
-            inference_model = self.get_latest_model_path()
+            inference_model = self.get_latest_model_path(with_best=True)
+        if not io.file_exist(inference_model):
+            raise IOError(f'Cannot open inference model {inference_model}')
         # Load the model
         self.log.info(f"Load model from {inference_model}")
         checkpoint = torch.load(inference_model, map_location=self.device)
@@ -275,6 +281,17 @@ class ANCSHTrainer:
         self.model.to(self.device)
 
         self.eval_epoch(epoch, save_results=True)
+
+        # create visualizations of evaluation results
+        if self.cfg.test.render.render:
+            export_dir = os.path.join(self.cfg.paths.network.test.output_dir,
+                                      self.cfg.paths.network.test.visualization_folder)
+            io.ensure_dir_exists(export_dir)
+            inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
+                                          self.network_type.value + '_' + self.cfg.paths.network.test.inference_result)
+            with h5py.File(inference_path, "r") as inference_h5:
+                visualizer = ANCSHVisualizer(inference_h5, network_type=self.network_type)
+                visualizer.render(self.cfg.test.render.show, export=export_dir, export_mesh=self.cfg.test.render.export)
 
     def save_results(self, pred, camcs_per_point, gt, id):
         # Save the results and gt into hdf5 for further optimization
