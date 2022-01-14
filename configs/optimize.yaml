@@ -6,7 +6,7 @@ random_seed: 42
 num_workers: 8
 
 render:
-  render: true
+  render: false
   show: false
   export: false
 

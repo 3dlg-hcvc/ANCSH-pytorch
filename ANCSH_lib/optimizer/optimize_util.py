@@ -1,4 +1,5 @@
 import numpy as np
+from time import time
 from scipy.spatial.transform import Rotation as srot
 from scipy.optimize import least_squares
 
@@ -11,6 +12,8 @@ def isRotationMatrix(R):
     return n < 1e-6
 
 def ransac(dataset, model_estimator, model_verifier, inlier_th, niter, joint_type):
+    if dataset["nsource0"] < 3 or dataset["nsource1"] < 3:
+        return None, None
     best_model = None
     best_score = -np.inf
     best_inliers = None
@@ -27,6 +30,10 @@ def ransac(dataset, model_estimator, model_verifier, inlier_th, niter, joint_typ
 def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
     # dataset: dict, fields include source0, target0, nsource0,
     #     source1, target1, nsource1, joint_direction
+    if dataset["nsource0"] < 3 or dataset["nsource1"] < 3:
+        print("No enough point bug")
+        import pdb
+        pdb.set_trace()
     if best_inliers is None:
         sample_idx0 = np.random.randint(dataset["nsource0"], size=3)
         sample_idx1 = np.random.randint(dataset["nsource1"], size=3)
@@ -125,9 +132,12 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
     translation0 = np.mean(target0.T - scale0 * np.matmul(R0, source0.T), 1)
     translation1 = np.mean(target1.T - scale1 * np.matmul(R1, source1.T), 1)
     # Only for debug
-    # if np.isnan(translation0).any() or np.isnan(translation1).any():
-    #     translation0 = np.zeros(3)
-    #     translation1 = np.zeros(3)
+    if np.isnan(translation0).any() or np.isnan(translation1).any():
+        print("NAN bug")
+        import pdb
+        pdb.set_trace()
+        translation0 = np.zeros(3)
+        translation1 = np.zeros(3)
     jtrans = dict()
     jtrans["rotation0"] = R0
     jtrans["scale0"] = scale0
@@ -263,7 +273,9 @@ def rot_diff_rad(rot1, rot2):
     theta = np.clip(( np.trace(np.matmul(rot1, rot2.T)) - 1 ) / 2, a_min=-1.0, a_max=1.0)
     return np.arccos( theta ) % (2*np.pi)
 
-def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_threshold, gt=False):
+def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_threshold, log, gt=False):
+    # log.info(f"Working on {ins}")
+    start = time()
     prefix = 'gt_' if gt else 'pred_'
     camcs_per_point = ins_ancsh["camcs_per_point"]
     gt_joint_type = ins_ancsh["gt_joint_type"]
@@ -310,6 +322,8 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
 
         assert gt_joint_type[i] >= 0
 
+        # print(f"data processing time {time() - start}")
+
         best_model, best_inliers = ransac(
             data,
             joint_transformation_estimator,
@@ -318,6 +332,12 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
             niter,
             gt_joint_type[i],
         )
+        # print(f"ransac time {time() - start}")
+        if ins == "StorageFurniture_45984_0_3" or best_model == None:
+            log.warning(f"Invalid instance {ins}")
+            return {
+                "is_valid": [False],
+            }
 
         if i == 1:
             # Record the pred things and error for base part
@@ -348,7 +368,12 @@ def optimize_with_kinematic(ins_ancsh, ins_npcs, num_parts, niter, choose_thresh
         err_translation.append(tdiff)
         err_scale.append(sdiff)
 
+    # log.info(f"{ins} Done in {time() - start} seconds")
+    # log.info(f"Pred Scale {pred_scale}")
+    # log.info(f"Pred RT {pred_rt}")
+
     return {
+        "is_valid": [True],
         "pred_npcs2cam_scale": pred_scale,
         "pred_npcs2cam_rt": pred_rt,
         "err_rotation": err_rotation,
