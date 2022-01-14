@@ -34,6 +34,7 @@ class ANCSHOptimizer:
         pool = multiprocessing.Pool(processes=process_num)
         self.log.info(f"runing {self.cfg.optimization.niter} iterations for ransac")
         process = []
+        # start = True
         # This should automatically change the result file
         for ins in self.instances:
             process.append(
@@ -50,16 +51,19 @@ class ANCSHOptimizer:
                     ),
                 )
             )
-
-            # optimize_with_kinematic(
-            #     ins,
-            #     h5_dict(self.f_ancsh[ins]),
-            #     h5_dict(self.f_npcs[ins]),
-            #     self.num_parts,
-            #     self.cfg.optimization.niter,
-            #     self.cfg.optimization.choose_threshold,
-            #     self.log,
-            # )
+            # if ins == "eyeglasses_0042_3_1":
+            #     start = True
+            # if start == True:
+            #     print(f"Working on {ins}")
+            #     optimize_with_kinematic(
+            #         ins,
+            #         h5_dict(self.f_ancsh[ins]),
+            #         h5_dict(self.f_npcs[ins]),
+            #         self.num_parts,
+            #         self.cfg.optimization.niter,
+            #         self.cfg.optimization.choose_threshold,
+            #         self.log,
+            #     )
         pool.close()
         pool.join()
 

@@ -12,7 +12,7 @@ def isRotationMatrix(R):
     return n < 1e-6
 
 def ransac(dataset, model_estimator, model_verifier, inlier_th, niter, joint_type):
-    if dataset["nsource0"] < 3 or dataset["nsource1"] < 3:
+    if dataset["nsource0"] < 3 or dataset["nsource1"] < 3 or np.isnan(dataset["joint_direction"]).any():
         return None, None
     best_model = None
     best_score = -np.inf
@@ -94,45 +94,55 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
         #         False,
         #     ),
         # )
-        res = least_squares(
-            objective_eval_t,
-            np.hstack((rotvec0, rotvec1)),
-            verbose=0,
-            ftol=1e-4,
-            method="lm",
-            args=(
-                source0_centered,
-                target0_scaled_centered,
-                source1_centered,
-                target1_scaled_centered,
-                joint_points0,
-                False,
-            ),
-        )
+        try:
+            res = least_squares(
+                objective_eval_t,
+                np.hstack((rotvec0, rotvec1)),
+                verbose=0,
+                ftol=1e-4,
+                method="lm",
+                args=(
+                    source0_centered,
+                    target0_scaled_centered,
+                    source1_centered,
+                    target1_scaled_centered,
+                    joint_points0,
+                    False,
+                ),
+            )
+        except:
+            print("least square error")
+            import pdb
+            pdb.set_trace()
     elif joint_type == 1:
         # 1 represents revolute
-        res = least_squares(
-            objective_eval_r,
-            np.hstack((rotvec0, rotvec1)),
-            verbose=0,
-            ftol=1e-4,
-            method="lm",
-            args=(
-                source0_centered,
-                target0_scaled_centered,
-                source1_centered,
-                target1_scaled_centered,
-                joint_points0,
-                False,
-            ),
-        )
+        try:
+            res = least_squares(
+                objective_eval_r,
+                np.hstack((rotvec0, rotvec1)),
+                verbose=0,
+                ftol=1e-4,
+                method="lm",
+                args=(
+                    source0_centered,
+                    target0_scaled_centered,
+                    source1_centered,
+                    target1_scaled_centered,
+                    joint_points0,
+                    False,
+                ),
+            )
+        except:
+            print("least square error")
+            import pdb
+            pdb.set_trace()
     R0 = srot.from_rotvec(res.x[:3]).as_matrix()
     R1 = srot.from_rotvec(res.x[3:]).as_matrix()
 
     translation0 = np.mean(target0.T - scale0 * np.matmul(R0, source0.T), 1)
     translation1 = np.mean(target1.T - scale1 * np.matmul(R1, source1.T), 1)
     # Only for debug
-    if np.isnan(translation0).any() or np.isnan(translation1).any():
+    if np.isnan(translation0).any() or np.isnan(translation1).any() or  np.isnan(R0).any() or  np.isnan(R0).any():
         print("NAN bug")
         import pdb
         pdb.set_trace()
@@ -318,12 +328,14 @@ def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_t
         data["target1"] = camcs_per_point[partIndex[i]]
         data["nsource1"] = data["source1"].shape[0]
         # Get the constrained joint info
-        data["joint_direction"] = np.median(pred_axis_per_point[jointIndex[i-1]], axis=0)
+        if not jointIndex[i-1].shape[0] == 0:
+            data["joint_direction"] = np.median(pred_axis_per_point[jointIndex[i-1]], axis=0)
+        else:
+            data["joint_direction"] = np.array([np.nan, np.nan, np.nan])
 
         assert gt_joint_type[i] >= 0
 
         # print(f"data processing time {time() - start}")
-
         best_model, best_inliers = ransac(
             data,
             joint_transformation_estimator,
@@ -333,7 +345,7 @@ def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_t
             gt_joint_type[i],
         )
         # print(f"ransac time {time() - start}")
-        if ins == "StorageFurniture_45984_0_3" or best_model == None:
+        if best_model == None:
             log.warning(f"Invalid instance {ins}")
             return {
                 "is_valid": [False],
