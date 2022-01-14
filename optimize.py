@@ -28,6 +28,7 @@ def main(cfg: DictConfig):
 
     num_parts = utils.get_num_parts(train_path)
     log.info(f'Instances in dataset have {num_parts} parts')
+    # num_parts = 3
 
     optimizer = ANCSHOptimizer(cfg, ancsh_results_path, npcs_results_path, num_parts=num_parts)
     optimizer.optimize(process_num=cfg.num_workers)
