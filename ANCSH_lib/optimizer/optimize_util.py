@@ -19,6 +19,8 @@ def ransac(dataset, model_estimator, model_verifier, inlier_th, niter, joint_typ
     best_inliers = None
     for i in range(niter):
         cur_model = model_estimator(dataset, joint_type)
+        if cur_model == None:
+            return None, None
         cur_score, cur_inliers = model_verifier(dataset, cur_model, inlier_th)
         if cur_score > best_score:
             best_model = cur_model
@@ -117,6 +119,7 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
     elif joint_type == 1:
         # 1 represents revolute
         try:
+            # start = time()
             res = least_squares(
                 objective_eval_r,
                 np.hstack((rotvec0, rotvec1)),
@@ -132,6 +135,7 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
                     False,
                 ),
             )
+            # print(f"ls time {time() - start}")
         except:
             print("least square error")
             import pdb
@@ -141,13 +145,10 @@ def joint_transformation_estimator(dataset, joint_type, best_inliers=None):
 
     translation0 = np.mean(target0.T - scale0 * np.matmul(R0, source0.T), 1)
     translation1 = np.mean(target1.T - scale1 * np.matmul(R1, source1.T), 1)
-    # Only for debug
+    # Failure case for least square
     if np.isnan(translation0).any() or np.isnan(translation1).any() or  np.isnan(R0).any() or  np.isnan(R0).any():
-        print("NAN bug")
-        import pdb
-        pdb.set_trace()
-        translation0 = np.zeros(3)
-        translation1 = np.zeros(3)
+        print("NAN error")
+        return None
     jtrans = dict()
     jtrans["rotation0"] = R0
     jtrans["scale0"] = scale0

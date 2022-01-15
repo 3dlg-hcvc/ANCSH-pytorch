@@ -13,7 +13,7 @@ from tools.visualization import OptimizerVisualizer
 def h5_dict(ins):
     result = {}
     for k, v in ins.items():
-        result[k] = np.array(v)
+        result[k] = np.asarray(v[:])
     return result
 
 
@@ -51,7 +51,7 @@ class ANCSHOptimizer:
                     ),
                 )
             )
-            # if ins == "eyeglasses_0042_3_1":
+            # if ins == "eyeglasses_0042_26_1":
             #     start = True
             # if start == True:
             #     print(f"Working on {ins}")
