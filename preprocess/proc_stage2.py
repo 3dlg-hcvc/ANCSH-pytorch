@@ -278,7 +278,7 @@ class ProcStage2:
         if io.file_exist(self.cfg.paths.preprocess.stage2.input.split_info, ext='.csv'):
             input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info)
             self.split_info = input_split_info.merge(df_dataset, how='inner',
-                                                     on=['objectCat', 'objectId', 'articulationId', 'frameId'])
+                                                     on=input_split_info.columns)
         else:
             # split to train, val, test
             log.info(f'Split on key {split_on}')

@@ -1,9 +1,9 @@
 import os
+import re
 import trimesh
 import numpy as np
 import pandas as pd
 from enum import Enum
-from matplotlib import cm
 from urdfpy import URDF, JointLimit
 
 from tools.utils import io
@@ -25,6 +25,7 @@ class DatasetName(Enum):
     SAPIEN = 0
     SHAPE2MOTION = 1
     MULTISCAN = 2
+    MOTIONNET = 3
 
 
 class JointType(Enum):
@@ -34,6 +35,7 @@ class JointType(Enum):
     continuous = -1
     floating = -1
     planar = -1
+
 
 def get_mesh_info(mesh_path):
     mesh = trimesh.load(mesh_path, force='mesh')
@@ -49,6 +51,29 @@ def get_mesh_info(mesh_path):
         'scale': scale
     }
     return mesh_info
+
+
+def get_files_in_format(folder_path, format, ext=None, one=False):
+    files = io.alphanum_ordered_file_list(folder_path)
+    valid_files = []
+    for f in files:
+        pattern = re.compile(format)
+        filename, extension = os.path.splitext(f)
+        if pattern.fullmatch(filename):
+            if ext is None or ext == extension:
+                if one:
+                    return f
+                valid_files.append(f)
+    return valid_files
+
+
+def get_one_door_articulations(root_path, filename):
+    data = io.read_json(os.path.join(root_path, filename))
+    motions = data['motions']
+    if len(motions) > 1:
+        return None
+    if motions[0]['label'] == 'door' and motions[0]['type'] == 'rotation':
+        return os.path.splitext(filename)[0]
 
 
 class DataLoader:
@@ -69,8 +94,12 @@ class DataLoader:
 
         selected_categories = self.data_info['objectCat'].isin(self.cfg.settings.categories) \
             if len(self.cfg.settings.categories) > 0 else self.data_info['objectCat'].astype(bool)
-        selected_object_ids = self.data_info['objectId'].isin(self.cfg.settings.object_ids) \
-            if len(self.cfg.settings.object_ids) > 0 else self.data_info['objectId'].astype(bool)
+        if io.file_exist(self.cfg.settings.object_ids_path, '.csv'):
+            setting_object_ids = pd.read_csv(self.cfg.settings.object_ids_path, dtype=str)['objectId'].to_list()
+        else:
+            setting_object_ids = self.cfg.settings.object_ids
+        selected_object_ids = self.data_info['objectId'].isin(setting_object_ids) \
+            if len(setting_object_ids) > 0 else self.data_info['objectId'].astype(bool)
         selected_articulation_ids = self.data_info['articulationId'].isin(self.cfg.settings.articulation_ids) \
             if len(self.cfg.settings.articulation_ids) > 0 else self.data_info['articulationId'].astype(bool)
         self.data_info = self.data_info[selected_categories & selected_object_ids & selected_articulation_ids]
@@ -84,21 +113,49 @@ class DataLoader:
             object_cat_path = os.path.join(self.render_dir, object_cat)
             object_ids = io.alphanum_ordered_folder_list(object_cat_path)
             # object instance ids
-            for object_id in object_ids:
-                object_id_path = os.path.join(object_cat_path, object_id)
-                articulation_ids = io.alphanum_ordered_folder_list(object_id_path)
-                # object with different articulations instance ids
-                for articulation_id in articulation_ids:
-                    articulation_id_path = os.path.join(object_id_path, articulation_id)
-                    depth_dir = os.path.join(articulation_id_path, self.stage1_input.render.depth_folder)
-                    depth_frames = io.alphanum_ordered_file_list(depth_dir, ext=self.stage1_input.render.depth_ext)
-                    mask_dir = os.path.join(articulation_id_path, self.stage1_input.render.mask_folder)
-                    mask_frames = io.alphanum_ordered_file_list(mask_dir, ext=self.stage1_input.render.mask_ext)
-                    metadata_file = self.stage1_input.render.metadata_file
+            if self.dataset_name == DatasetName.SAPIEN or self.dataset_name == DatasetName.SHAPE2MOTION:
+                for object_id in object_ids:
+                    object_id_path = os.path.join(object_cat_path, object_id)
+                    articulation_ids = io.alphanum_ordered_folder_list(object_id_path)
+                    # object with different articulations instance ids
+                    for articulation_id in articulation_ids:
+                        articulation_id_path = os.path.join(object_id_path, articulation_id)
+                        depth_dir = os.path.join(articulation_id_path, self.stage1_input.render.depth_folder)
+                        depth_frames = io.alphanum_ordered_file_list(depth_dir, ext=self.stage1_input.render.depth_ext)
+                        mask_dir = os.path.join(articulation_id_path, self.stage1_input.render.mask_folder)
+                        mask_frames = io.alphanum_ordered_file_list(mask_dir, ext=self.stage1_input.render.mask_ext)
+                        metadata_file = self.stage1_input.render.metadata_file
+                        num_renders = len(depth_frames)
+                        df_row = pd.concat([pd.DataFrame(
+                            [[object_cat, object_id, articulation_id, depth_frames[i], mask_frames[i],
+                              metadata_file]],
+                            columns=['objectCat', 'objectId', 'articulationId',
+                                     'depthFrame', 'maskFrame', 'metadata']) for i in range(num_renders)],
+                            ignore_index=True)
+                        df_list.append(df_row)
+            elif self.dataset_name == DatasetName.MOTIONNET:
+                for object_id in object_ids:
+                    object_id_path = os.path.join(object_cat_path, object_id)
+                    depth_dir = os.path.join(object_id_path, self.stage1_input.render.depth_folder)
+                    mask_dir = os.path.join(object_id_path, self.stage1_input.render.mask_folder)
+                    depth_frames = get_files_in_format(depth_dir, '\d+(\-\d+)+_d', self.stage1_input.render.depth_ext)
+                    mask_frames = get_files_in_format(mask_dir, '\d+(\-\d+)+_\d+', self.stage1_input.render.mask_ext)
+                    metadata_dir = os.path.join(object_id_path, self.stage1_input.render.metadata_folder)
+                    metadata_files = get_files_in_format(metadata_dir, '\d+(\-\d+)+',
+                                                         self.stage1_input.render.metadata_ext)
+                    articulation_ids = []
+                    for filename in metadata_files:
+                        articulation_id = str(0)
+                        frame_name = os.path.splitext(filename)[0]
+                        components = frame_name.split('-')
+                        if len(components) > 3:
+                            articulation_id = components[-2]
+                        articulation_ids.append(articulation_id)
                     num_renders = len(depth_frames)
+                    # only support one mask to depth frame mapping yet
                     df_row = pd.concat([pd.DataFrame(
-                        [[object_cat, object_id, articulation_id, depth_frames[i], mask_frames[i],
-                          metadata_file]],
+                        [[object_cat, object_id, articulation_ids[i], depth_frames[i], mask_frames[i],
+                          metadata_files[i]]],
                         columns=['objectCat', 'objectId', 'articulationId',
                                  'depthFrame', 'maskFrame', 'metadata']) for i in range(num_renders)],
                         ignore_index=True)
@@ -126,8 +183,9 @@ class DataLoader:
 
 
 class URDFReader:
-    def __init__(self, urdf_file_path=None):
+    def __init__(self, urdf_file_path=None, meta_file_path=None):
         self.urdf_file_path = urdf_file_path
+        self.metadata = io.read_json(meta_file_path) if meta_file_path is not None else None
         self.urdf_data = None
         if self.urdf_file_path:
             self.load(self.urdf_file_path)
@@ -196,6 +254,56 @@ class URDFReader:
 
         link_infos, joint_infos, link_meshes = self.parse_urdf()
         object_mesh = trimesh.base.Trimesh()
+        # temporary for one part only
+        if self.metadata is not None:
+            motion = self.metadata['motions'][0]
+            part_link_name = 'link_' + motion['partId']
+            base_link_name = ''
+            for i, joint_info in enumerate(joint_infos):
+                if joint_info.get('type') == 'fixed':
+                    base_link_name = joint_info['child']
+            part_children = [link_infos[i]['part_index'] for i, joint_info in enumerate(joint_infos) if
+                             (joint_info.get('parent') == part_link_name or joint_info.get('child') == part_link_name)]
+            base_children = [link_infos[i]['part_index'] for i, joint_info in enumerate(joint_infos) if
+                             (joint_info.get('parent') == base_link_name or joint_info.get('child') == base_link_name)
+                             if joint_info.get('child') != part_link_name]
+            part_link_info = None
+            part_joint_info = {}
+            for i, link_info in enumerate(link_infos):
+                if link_info['name'] == part_link_name:
+                    part_link_info = link_info
+                    part_link_info['part_index'] = 1
+                    part_joint_info = joint_infos[i]
+            base_link_info = None
+            base_joint_info = {}
+            for i, link_info in enumerate(link_infos):
+                if link_info['name'] == base_link_name:
+                    base_link_info = link_info
+                    base_link_info['part_index'] = 0
+                    base_joint_info = joint_infos[i]
+
+            virtual_link_info = None
+            virtual_joint_info = {}
+            for i, link_info in enumerate(link_infos):
+                if link_info['virtual']:
+                    virtual_link_info = link_info
+                    virtual_joint_info = joint_infos[i]
+
+            assert len(part_children) + len(base_children) == len(link_infos) - (0 if virtual_link_info is None else 1)
+
+            base_link_mesh = trimesh.base.Trimesh()
+            for i in base_children:
+                base_link_mesh += link_meshes[i]
+            part_link_mesh = trimesh.base.Trimesh()
+            for i in part_children:
+                part_link_mesh += link_meshes[i]
+
+            link_infos = [base_link_info, part_link_info] if virtual_link_info is None \
+                else [virtual_link_info, base_link_info, part_link_info]
+            joint_infos = [base_joint_info, part_joint_info] if virtual_link_info is None \
+                else [virtual_joint_info, base_joint_info, part_joint_info]
+            link_meshes = [base_link_mesh, part_link_mesh]
+
         for link_info in link_infos:
             if not link_info['virtual']:
                 part_mesh = link_meshes[link_info['part_index']]

@@ -1,18 +1,19 @@
 version: "v1.0"
 
-debug: false
+debug: true
 show: false
 export: false
-num_workers: 8
+num_workers: 1
 
 defaults:
-  - dataset: sapien
+  - dataset: motionnet
   - paths: ???
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
 settings:
-  categories: []
+  categories: ['OneDoor']
   object_ids: []
+  object_ids_path: "${paths.dataset_dir}/object_id.csv"
   articulation_ids: []
   stage1:
     process: true

@@ -134,7 +134,7 @@ def write_json(data, filename, indent=2):
 
 
 def read_json(filename):
-    if file_exist(filename):
+    if filename is not None and file_exist(filename):
         with open(filename, "r") as fp:
             data = json.load(fp)
         return data

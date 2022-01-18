@@ -1,6 +1,7 @@
 import os
 import h5py
 import yaml
+import math
 import logging
 import numpy as np
 
@@ -27,7 +28,7 @@ class ProcStage1Impl:
         self.height = self.render_cfg.height
         self.dataset_name = cfg.dataset_name
 
-    def get_metadata(self, metadata_path, frame_index, num_parts):
+    def get_metadata(self, metadata_path, frame_index, num_parts, rest_state_data=None):
         metadata = {}
         if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
                 DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
@@ -51,6 +52,53 @@ class ProcStage1Impl:
                 pose[:3, :3] = orientation
                 pose[:3, 3] = position
                 metadata['linkAbsPoses'].append(pose)
+        elif DatasetName[self.dataset_name] == DatasetName.MOTIONNET:
+            frame_metadata = io.read_json(metadata_path)
+            fov = frame_metadata['camera']['intrinsic']['fov'] / 180 * np.pi
+            fx = self.height / (2 * math.tan(fov / 2))
+            fy = fx / self.height * self.width
+            cx = self.width / 2
+            cy = self.height / 2
+            intrinsic = np.diag([fx, fy, 1])
+            intrinsic[:2, 2] = [cx, cy]
+            extrinsic = np.reshape(frame_metadata['camera']['extrinsic']['matrix'], (4, 4), order='F')
+            extrinsic = np.linalg.inv(extrinsic)
+            orientation = extrinsic[:3, :3]
+            orientation = np.dot(orientation, R.from_rotvec(np.pi / 2 * np.array([0, 0, 1])).as_matrix())
+            orientation = np.dot(orientation, R.from_rotvec(np.pi / 2 * np.array([0, 1, 0])).as_matrix())
+            orientation = np.dot(orientation, R.from_rotvec(np.pi * np.array([0, 0, 1])).as_matrix())
+            extrinsic[:3, :3] = orientation
+            metadata = {
+                'intrinsic': intrinsic,
+                'extrinsic': extrinsic,
+                'linkAbsPoses': []
+            }
+            # one part case
+            motion = frame_metadata['motions'][0]
+            link_names = [link['name'] for link in rest_state_data['links']]
+            for i, link in enumerate(rest_state_data['links']):
+                if link['virtual']:
+                    continue
+                joint = rest_state_data['joints'][i]
+                pose = np.reshape(link['abs_pose'], (4, 4), order='F')
+                if link['name'] == f'link_{motion["partId"]}':
+                    joint_state = np.abs(motion['value'])
+                    joint_axis = joint['axis']
+                    joint_pose = np.reshape(joint['pose2link'], (4, 4), order='F')
+                    joint_parent = joint['parent']
+                    parent_link = rest_state_data['links'][link_names.index(joint_parent)]
+                    parent_link_abs_pose = np.asarray(parent_link['abs_pose']).reshape((4, 4), order='F')
+                    joint_abs_pose = np.dot(parent_link_abs_pose, joint_pose)
+                    translation = np.eye(4)
+                    translation_inv = np.eye(4)
+                    translation[:3, 3] = joint_abs_pose[:3, 3]
+                    translation_inv[:3, 3] = -joint_abs_pose[:3, 3]
+                    joint_abs_axis = np.dot(joint_abs_pose[:3, :3], joint_axis)
+                    rotation = np.eye(4)
+                    rotation[:3, :3] = R.from_rotvec(joint_state * np.array(joint_abs_axis)).as_matrix()
+                    pose = np.dot(rotation, np.dot(translation_inv, pose))
+                    pose = np.dot(translation, pose)
+                metadata['linkAbsPoses'].append(pose)
 
         return metadata
 
@@ -59,55 +107,103 @@ class ProcStage1Impl:
         h5file = h5py.File(output_filepath, 'w')
         bar = Bar(f'Stage1 Processing chunk {idx}', max=len(input_data))
         for index, input_each in input_data.iterrows():
-            depth_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
-                                            input_each['objectId'], input_each['articulationId'],
-                                            self.render_cfg.depth_folder, input_each['depthFrame'])
-            mask_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
-                                           input_each['objectId'], input_each['articulationId'],
-                                           self.render_cfg.mask_folder, input_each['maskFrame'])
-            metadata_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
-                                         input_each['objectId'], input_each['articulationId'],
-                                         input_each['metadata'])
             tmp_data_dir = os.path.join(self.tmp_dir, input_each['objectCat'], input_each['objectId'])
             rest_state_data_path = os.path.join(tmp_data_dir, self.rest_state_data_filename)
 
-            frame_index = int(input_each['depthFrame'].split(self.render_cfg.depth_ext)[0])
-            # float32 depth buffer, range from 0 to 1
-            depth_data = np.array(h5py.File(depth_frame_path, "r")["data"])
+            if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
+                    DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
+                depth_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                                input_each['objectId'], input_each['articulationId'],
+                                                self.render_cfg.depth_folder, input_each['depthFrame'])
+                mask_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                               input_each['objectId'], input_each['articulationId'],
+                                               self.render_cfg.mask_folder, input_each['maskFrame'])
+                metadata_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                             input_each['objectId'], input_each['articulationId'],
+                                             input_each['metadata'])
+
+                frame_index = int(input_each['depthFrame'].split(self.render_cfg.depth_ext)[0])
+                # float32 depth buffer, range from 0 to 1
+                depth_data = np.array(h5py.File(depth_frame_path, "r")["data"])
+            elif DatasetName[self.dataset_name] == DatasetName.MOTIONNET:
+                depth_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                                input_each['objectId'], self.render_cfg.depth_folder,
+                                                input_each['depthFrame'])
+                mask_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                               input_each['objectId'], self.render_cfg.mask_folder,
+                                               input_each['maskFrame'])
+                metadata_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                             input_each['objectId'], self.render_cfg.metadata_folder,
+                                             input_each['metadata'])
+
+                frame_index = int(input_each['depthFrame'].split('_d' + self.render_cfg.depth_ext)[0].split('-')[-1])
+                depth_data = np.asarray(Image.open(depth_frame_path))
             # uint8 mask, invalid value is 255
             mask_frame = np.asarray(Image.open(mask_frame_path))
-            rest_data_data = io.read_json(rest_state_data_path)
-            num_parts = len([link for link in rest_data_data['links'] if link if not link['virtual']])
-            assert depth_data.size == mask_frame.size
-            metadata = self.get_metadata(metadata_path, frame_index, num_parts)
-            x_range = np.linspace(-1, 1, self.width)
-            y_range = np.linspace(1, -1, self.height)
-            x, y = np.meshgrid(x_range, y_range)
-            x = x.flatten()
-            y = y.flatten()
-            z = 2.0 * depth_data - 1.0
-            # shape nx4
-            points_tmp = np.column_stack((x, y, z, np.ones(self.height * self.width)))
-            mask_tmp = mask_frame.flatten()
-            # points in clip space
-            points_clip = points_tmp[mask_tmp < 255]
-            link_mask = mask_tmp[mask_tmp < 255]
-            # check if unique value in mask match num parts
-            assert points_clip.shape[0] == link_mask.shape[0]
-            proj_mat = metadata['projMat']
-            view_mat = metadata['viewMat']
-            # transform points from clip space to camera space
-            # shape 4xn
-            points_camera = np.dot(np.linalg.inv(proj_mat), points_clip.transpose())
-            # homogeneous normalization
-            points_camera = points_camera / points_camera[-1, :]
-            # shape 4xn
-            points_world = np.dot(np.linalg.inv(view_mat), points_camera)
+            rest_state_data = io.read_json(rest_state_data_path)
+            num_parts = len([link for link in rest_state_data['links'] if link if not link['virtual']])
+            assert depth_data.shape[:2] == mask_frame.shape[:2]
+            metadata = self.get_metadata(metadata_path, frame_index, num_parts, rest_state_data)
+            if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
+                    DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
+                x_range = np.linspace(-1, 1, self.width)
+                y_range = np.linspace(1, -1, self.height)
+                x, y = np.meshgrid(x_range, y_range)
+                x = x.flatten()
+                y = y.flatten()
+                z = 2.0 * depth_data - 1.0
+                # shape nx4
+                points_tmp = np.column_stack((x, y, z, np.ones(self.height * self.width)))
+                mask_tmp = mask_frame.flatten()
+                # points in clip space
+                points_clip = points_tmp[mask_tmp < 255]
+                link_mask = mask_tmp[mask_tmp < 255]
+                # check if unique value in mask match num parts
+                assert points_clip.shape[0] == link_mask.shape[0]
+                proj_mat = metadata['projMat']
+                view_mat = metadata['viewMat']
+                # transform points from clip space to camera space
+                # shape 4xn
+                points_camera = np.dot(np.linalg.inv(proj_mat), points_clip.transpose())
+                # homogeneous normalization
+                points_camera = points_camera / points_camera[-1, :]
+                # shape 4xn
+                points_world = np.dot(np.linalg.inv(view_mat), points_camera)
+            elif DatasetName[self.dataset_name] == DatasetName.MOTIONNET:
+                empty_points = mask_frame[:, :, 3] == 0
+                mask_tmp = mask_frame[~empty_points][:, :3]
+                link_mask = np.zeros(mask_tmp.shape[0])
+                base_pixels = np.all(mask_tmp == [0, 0, 0], axis=-1)
+                part_pixels = ~base_pixels
+                link_mask[base_pixels] = 1
+                link_mask[part_pixels] = 2
+                x_range = np.linspace(0, self.width, self.width)
+                y_range = np.linspace(0, self.height, self.height)
+                intrinsic = metadata['intrinsic']
+                fx = intrinsic[0, 0]
+                fy = intrinsic[1, 1]
+                cx, cy = intrinsic[:2, 2]
+                x, y = np.meshgrid(x_range, y_range)
+                z = 1.0 * depth_data / 1000.0
+                z = z.flatten()
+                x = (x.flatten() - cx) * z / fx
+                y = -(y.flatten() - cy) * z / fy
+                z = -z
+                points_tmp = np.column_stack((x, y, z, np.ones_like(z)))
+                empty_points = empty_points.flatten()
+                points_camera = points_tmp[~empty_points]
+                # check if unique value in mask match num parts
+                assert points_camera.shape[0] == link_mask.shape[0]
+                extrinsic = metadata['extrinsic']
+                points_camera = points_camera.transpose()
+                # shape 4xn
+                points_world = np.dot(np.linalg.inv(extrinsic), points_camera)
+                view_mat = extrinsic
 
             # transform links to rest state
             points_rest_state = np.empty_like(points_world)
             parts_camera2rest_state = []
-            for link_idx, link in enumerate(rest_data_data['links']):
+            for link_idx, link in enumerate(rest_state_data['links']):
                 if link['virtual']:
                     continue
                 link_points_world = points_world[:, link_mask == link_idx]
@@ -126,6 +222,9 @@ class ProcStage1Impl:
             points_camera_p3 = points_camera.transpose()[:, :3]
             points_world_p3 = points_world.transpose()[:, :3]
             points_rest_state_p3 = points_rest_state.transpose()[:, :3]
+
+            # viewer = Viewer(points_world_p3, colors=Viewer.rgba_by_index(0))
+            # viewer.show()
 
             camera2base_matrix = np.linalg.inv(view_mat).flatten('F')
             instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
@@ -163,16 +262,24 @@ class ProcStage1:
             motion_file_path = os.path.join(self.data_loader.motion_dir, motion_data['objectCat'],
                                             motion_data['objectId'], motion_data['motion'])
             assert io.file_exist(motion_file_path), f'Can not found Motion file {motion_file_path}!'
-            if DatasetName[self.cfg.dataset.name] == DatasetName.SAPIEN or \
-                    DatasetName[self.cfg.dataset.name] == DatasetName.SHAPE2MOTION:
-                urdf_reader = URDFReader(motion_file_path)
-                tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name,
-                                            motion_data['objectCat'], motion_data['objectId'])
-                urdf_reader.export(
-                    result_data_path=tmp_data_dir,
-                    rest_state_data_filename=self.tmp_output.rest_state_data,
-                    rest_state_mesh_filename=self.tmp_output.rest_state_mesh
-                )
+
+            metadata_file_path = None
+            if DatasetName[self.cfg.dataset.name] == DatasetName.MOTIONNET:
+                metadata_file_path = os.path.join(self.data_loader.render_dir, motion_data['objectCat'],
+                                                  motion_data['objectId'],
+                                                  self.cfg.paths.preprocess.stage1.input.render.metadata_folder,
+                                                  motion_data['metadata'])
+                assert io.file_exist(metadata_file_path), f'Can not found Metadata file {metadata_file_path}!'
+
+            urdf_reader = URDFReader(motion_file_path, metadata_file_path)
+            tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name,
+                                        motion_data['objectCat'], motion_data['objectId'])
+            urdf_reader.export(
+                result_data_path=tmp_data_dir,
+                rest_state_data_filename=self.tmp_output.rest_state_data,
+                rest_state_mesh_filename=self.tmp_output.rest_state_mesh
+            )
+
             bar.next()
         bar.finish()
 
@@ -204,6 +311,8 @@ class ProcStage1:
         render_cfg.mask_ext = self.input_cfg.render.mask_ext
         render_cfg.depth_folder = self.input_cfg.render.depth_folder
         render_cfg.mask_folder = self.input_cfg.render.mask_folder
+        if DatasetName[self.cfg.dataset.name] == DatasetName.MOTIONNET:
+            render_cfg.metadata_folder = self.input_cfg.render.metadata_folder
         config.render_cfg = render_cfg
         config.rest_state_data_filename = self.tmp_output.rest_state_data
         config.dataset_name = self.cfg.dataset.name
