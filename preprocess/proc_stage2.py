@@ -276,9 +276,10 @@ class ProcStage2:
         df_dataset = df_dataset[selected_categories & selected_object_ids & selected_articulation_ids]
 
         if io.file_exist(self.cfg.paths.preprocess.stage2.input.split_info, ext='.csv'):
-            input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info)
-            self.split_info = input_split_info.merge(df_dataset, how='inner',
-                                                     on=input_split_info.columns)
+            input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info, dtype=str)
+            split_on_columns = input_split_info.columns.tolist()[2:]
+            self.split_info = input_split_info.merge(df_dataset, how='inner', on=split_on_columns).set_index(
+                ['set', 'index'])
         else:
             # split to train, val, test
             log.info(f'Split on key {split_on}')
@@ -315,13 +316,13 @@ class ProcStage2:
         if self.split_info is None or self.split_info.empty:
             log.error('No data to process!')
             return
-        train = self.split_info.loc['train']
+        train = self.split_info.loc['train'].reset_index()
         log.info(f'Stage2 Process Train Set {len(train)} instances')
         self.process_set(train, self.output_dir, self.cfg.paths.preprocess.stage2.output.train_data)
-        val = self.split_info.loc['val']
+        val = self.split_info.loc['val'].reset_index()
         log.info(f'Stage2 Process Val Set {len(val)} instances')
         self.process_set(val, self.output_dir, self.cfg.paths.preprocess.stage2.output.val_data)
-        test = self.split_info.loc['test']
+        test = self.split_info.loc['test'].reset_index()
         log.info(f'Stage2 Process Test Set {len(test)} instances')
         self.process_set(test, self.output_dir, self.cfg.paths.preprocess.stage2.output.test_data)
 
@@ -398,7 +399,7 @@ class ProcStage2:
             io.ensure_dir_exists(tmp_data_dir)
 
             with h5py.File(h5_output_path, 'r') as h5file:
-                visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
+                visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=10)
                 visualizer.point_size = 5
                 visualizer.arrow_sampling = 10
                 visualizer.prefix = ''

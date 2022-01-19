@@ -183,13 +183,14 @@ class DataLoader:
 
 
 class URDFReader:
-    def __init__(self, urdf_file_path=None, meta_file_path=None):
+    def __init__(self, urdf_file_path=None, meta_file_path=None, defined_rest_state=None):
         self.urdf_file_path = urdf_file_path
         self.metadata = io.read_json(meta_file_path) if meta_file_path is not None else None
         self.urdf_data = None
         if self.urdf_file_path:
             self.load(self.urdf_file_path)
         self.debug = False
+        self.defined_rest_state = defined_rest_state
 
     def set_debug(self, debug=True):
         self.debug = debug
@@ -201,13 +202,19 @@ class URDFReader:
     def parse_urdf(self):
         assert self.urdf_data, "URDF data is empty!"
 
+        config = None
+        if self.metadata is not None and self.defined_rest_state is not None and not self.defined_rest_state.empty:
+            motion = self.metadata['motions'][0]
+            articulate_joint_name = 'joint_' + motion['partId']
+            config = {articulate_joint_name: -float(self.defined_rest_state['restState'])}
+
         link_infos = []
         link_idx = 0
         link_meshes = []
         for link in self.urdf_data.links:
-            fk_link, link_abs_pose = list(self.urdf_data.link_fk(links=[link]).items())[0]
+            fk_link, link_abs_pose = list(self.urdf_data.link_fk(cfg=config, links=[link]).items())[0]
             link_info = {'name': link.name}
-            fk_visual = self.urdf_data.visual_trimesh_fk(links=[link])
+            fk_visual = self.urdf_data.visual_trimesh_fk(cfg=config, links=[link])
             is_virtual = not bool(fk_visual)
             link_info['virtual'] = is_virtual
             link_info['abs_pose'] = link_abs_pose.flatten(order='F').tolist()

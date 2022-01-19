@@ -4,6 +4,7 @@ import yaml
 import math
 import logging
 import numpy as np
+import pandas as pd
 
 from PIL import Image
 from scipy.spatial.transform import Rotation as R
@@ -27,8 +28,9 @@ class ProcStage1Impl:
         self.width = self.render_cfg.width
         self.height = self.render_cfg.height
         self.dataset_name = cfg.dataset_name
+        self.defined_rest_state_file = cfg.defined_rest_state_file
 
-    def get_metadata(self, metadata_path, frame_index, num_parts, rest_state_data=None):
+    def get_metadata(self, object_id, metadata_path, frame_index, num_parts, rest_state_data=None):
         metadata = {}
         if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
                 DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
@@ -82,7 +84,13 @@ class ProcStage1Impl:
                 joint = rest_state_data['joints'][i]
                 pose = np.reshape(link['abs_pose'], (4, 4), order='F')
                 if link['name'] == f'link_{motion["partId"]}':
-                    joint_state = np.abs(motion['value'])
+                    rest_state = 0
+                    if io.file_exist(self.defined_rest_state_file):
+                        defined_rest_state = pd.read_csv(self.defined_rest_state_file, dtype=str)
+                        if object_id in defined_rest_state['objectId'].tolist():
+                            rest_state = float(
+                                defined_rest_state[defined_rest_state['objectId'] == object_id]['restState'])
+                    joint_state = np.abs(motion['value'] - rest_state)
                     joint_axis = joint['axis']
                     joint_pose = np.reshape(joint['pose2link'], (4, 4), order='F')
                     joint_parent = joint['parent']
@@ -143,7 +151,7 @@ class ProcStage1Impl:
             rest_state_data = io.read_json(rest_state_data_path)
             num_parts = len([link for link in rest_state_data['links'] if link if not link['virtual']])
             assert depth_data.shape[:2] == mask_frame.shape[:2]
-            metadata = self.get_metadata(metadata_path, frame_index, num_parts, rest_state_data)
+            metadata = self.get_metadata(input_each['objectId'], metadata_path, frame_index, num_parts, rest_state_data)
             if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
                     DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
                 x_range = np.linspace(-1, 1, self.width)
@@ -264,14 +272,19 @@ class ProcStage1:
             assert io.file_exist(motion_file_path), f'Can not found Motion file {motion_file_path}!'
 
             metadata_file_path = None
+            defined_rest_state = None
             if DatasetName[self.cfg.dataset.name] == DatasetName.MOTIONNET:
                 metadata_file_path = os.path.join(self.data_loader.render_dir, motion_data['objectCat'],
                                                   motion_data['objectId'],
                                                   self.cfg.paths.preprocess.stage1.input.render.metadata_folder,
                                                   motion_data['metadata'])
                 assert io.file_exist(metadata_file_path), f'Can not found Metadata file {metadata_file_path}!'
+                defined_rest_state_file = os.path.join(self.cfg.paths.preprocess.input_dir,
+                                                       self.input_cfg.defined_rest_state_file)
+                defined_rest_state = pd.read_csv(defined_rest_state_file, dtype=str)
+                defined_rest_state = defined_rest_state[defined_rest_state['objectId'] == motion_data['objectId']]
 
-            urdf_reader = URDFReader(motion_file_path, metadata_file_path)
+            urdf_reader = URDFReader(motion_file_path, metadata_file_path, defined_rest_state)
             tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name,
                                         motion_data['objectCat'], motion_data['objectId'])
             urdf_reader.export(
@@ -316,6 +329,8 @@ class ProcStage1:
         config.render_cfg = render_cfg
         config.rest_state_data_filename = self.tmp_output.rest_state_data
         config.dataset_name = self.cfg.dataset.name
+        config.defined_rest_state_file = os.path.join(self.cfg.paths.preprocess.input_dir,
+                                                      self.input_cfg.defined_rest_state_file)
         with Pool(processes=num_processes) as pool:
             proc_impl = ProcStage1Impl(config)
             output_filepath_list = pool.starmap(proc_impl, enumerate(chunks))
