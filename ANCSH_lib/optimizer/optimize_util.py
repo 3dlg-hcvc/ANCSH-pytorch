@@ -174,7 +174,7 @@ def joint_transformation_verifier(dataset, model, inlier_th):
         - model["translation1"].reshape((3, 1))
     )
     inliers1 = np.sqrt(np.sum(res1 ** 2, 0)) < inlier_th
-    score = (np.sum(inliers0) / res0.shape[0] + np.sum(inliers1) / res1.shape[0]) / 2
+    score = (np.sum(inliers0) / res0.shape[1] + np.sum(inliers1) / res1.shape[1]) / 2
     return score, [inliers0, inliers1]
 
 def objective_eval_r(params, x0, y0, x1, y1, joints, isweight=True):

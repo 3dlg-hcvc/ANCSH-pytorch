@@ -4,6 +4,7 @@ ancsh_results_path: ???
 npcs_results_path: ???
 random_seed: 42
 num_workers: 8
+num_parts: ???
 
 render:
   render: false

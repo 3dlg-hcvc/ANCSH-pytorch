@@ -117,6 +117,7 @@ class ANCSHEvaluator:
             # if instance == "eyeglasses_0042_9_23":
             #     flag = True
             ins_combined = self.f_combined[instance]
+            # if ins_combined["is_valid"][0] == True and not "12587" in instance:
             if ins_combined["is_valid"][0] == True:
                 # Get the useful information from the combined_results
                 prefix = 'pred_' if not gt else 'gt_'
@@ -210,6 +211,12 @@ class ANCSHEvaluator:
                     ratio_pose_volume = pred_scale[0] * pred_scale[1] * pred_scale[2] * pred_npcs_scale[partIndex]**3 / (
                             gt_scale[0] * gt_scale[1] * gt_scale[2] * gt_npcs_scale[partIndex]**3
                         )
+
+                    # if ratio_pose_volume == 0:
+                    #     import pdb
+                    #     pdb.set_trace()
+                    
+
                     if ratio_pose_volume > 1:
                         result["err_pose_volume"].append(
                             ratio_pose_volume - 1
