@@ -12,13 +12,14 @@ defaults:
 
 settings:
   categories: ['OneDoor']
-  object_ids: []
-  object_ids_path: "${paths.dataset_dir}/object_id.csv"
+  object_ids: ['46889']
+  # object_ids_path: "${paths.dataset_dir}/object_id.csv"
+  object_ids_path: path
   articulation_ids: []
   stage1:
     process: true
   stage2:
-    process: true
+    process: False
     train_percent: 0.6
     split_seed: 1
     split_on: "objectId" # or articulationId, frameId

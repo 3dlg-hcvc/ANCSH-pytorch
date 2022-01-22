@@ -6,7 +6,7 @@ import logging
 
 from ANCSH_lib.optimizer.optimize_util import optimize_with_kinematic
 from tools.utils import io
-from tools.visualization import OptimizerVisualizer
+from tools import visualization as viz
 
 
 def h5_dict(ins):
@@ -109,7 +109,7 @@ class ANCSHOptimizer:
         render_cfg = self.cfg.render
         if render_cfg.render:
             with h5py.File(optimization_result_path, "r") as h5file:
-                visualizer = OptimizerVisualizer(h5file)
+                visualizer = viz.OptimizerVisualizer(h5file)
                 export_dir = os.path.join(self.cfg.paths.optimization.output_dir,
                                           self.cfg.paths.optimization.visualization_folder)
                 visualizer.render(show=render_cfg.show, export=export_dir, export_mesh=render_cfg.export)

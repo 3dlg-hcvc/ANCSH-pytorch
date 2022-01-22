@@ -14,7 +14,7 @@ from ANCSH_lib.data import ANCSHDataset
 from ANCSH_lib import utils
 from ANCSH_lib.utils import AvgRecorder, NetworkType
 from tools.utils import io
-from tools.visualization import ANCSHVisualizer
+from tools import visualization as viz
 
 
 class ANCSHTrainer:
@@ -290,7 +290,7 @@ class ANCSHTrainer:
             inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
                                           self.network_type.value + '_' + self.cfg.paths.network.test.inference_result)
             with h5py.File(inference_path, "r") as inference_h5:
-                visualizer = ANCSHVisualizer(inference_h5, network_type=self.network_type)
+                visualizer = viz.ANCSHVisualizer(inference_h5, network_type=self.network_type)
                 visualizer.render(self.cfg.test.render.show, export=export_dir, export_mesh=self.cfg.test.render.export)
 
     def save_results(self, pred, camcs_per_point, gt, id):

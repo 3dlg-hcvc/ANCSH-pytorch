@@ -153,12 +153,18 @@ class DataLoader:
                         articulation_ids.append(articulation_id)
                     num_renders = len(depth_frames)
                     # only support one mask to depth frame mapping yet
-                    df_row = pd.concat([pd.DataFrame(
-                        [[object_cat, object_id, articulation_ids[i], depth_frames[i], mask_frames[i],
-                          metadata_files[i]]],
-                        columns=['objectCat', 'objectId', 'articulationId',
-                                 'depthFrame', 'maskFrame', 'metadata']) for i in range(num_renders)],
-                        ignore_index=True)
+                    df_tmp_list = []
+                    for i in range(num_renders):
+                        name = depth_frames[i].split('_d')[0]
+                        masks_name = [mask_frame for mask_frame in mask_frames if name == mask_frame.split('_')[0]]
+                            
+                        df_tmp = pd.DataFrame(
+                            [[object_cat, object_id, articulation_ids[i], depth_frames[i], masks_name,
+                            metadata_files[i]]],
+                            columns=['objectCat', 'objectId', 'articulationId',
+                                    'depthFrame', 'maskFrame', 'metadata'])
+                        df_tmp_list.append(df_tmp)
+                    df_row = pd.concat(df_tmp_list, ignore_index=True)
                     df_list.append(df_row)
         return pd.concat(df_list, ignore_index=True)
 

@@ -76,37 +76,37 @@ class ProcStage1Impl:
                 'linkAbsPoses': []
             }
             # one part case
-            motion = frame_metadata['motions'][0]
-            link_names = [link['name'] for link in rest_state_data['links']]
-            for i, link in enumerate(rest_state_data['links']):
-                if link['virtual']:
-                    continue
-                joint = rest_state_data['joints'][i]
-                pose = np.reshape(link['abs_pose'], (4, 4), order='F')
-                if link['name'] == f'link_{motion["partId"]}':
-                    rest_state = 0
-                    if io.file_exist(self.defined_rest_state_file):
-                        defined_rest_state = pd.read_csv(self.defined_rest_state_file, dtype=str)
-                        if object_id in defined_rest_state['objectId'].tolist():
-                            rest_state = float(
-                                defined_rest_state[defined_rest_state['objectId'] == object_id]['restState'])
-                    joint_state = np.abs(motion['value'] - rest_state)
-                    joint_axis = joint['axis']
-                    joint_pose = np.reshape(joint['pose2link'], (4, 4), order='F')
-                    joint_parent = joint['parent']
-                    parent_link = rest_state_data['links'][link_names.index(joint_parent)]
-                    parent_link_abs_pose = np.asarray(parent_link['abs_pose']).reshape((4, 4), order='F')
-                    joint_abs_pose = np.dot(parent_link_abs_pose, joint_pose)
-                    translation = np.eye(4)
-                    translation_inv = np.eye(4)
-                    translation[:3, 3] = joint_abs_pose[:3, 3]
-                    translation_inv[:3, 3] = -joint_abs_pose[:3, 3]
-                    joint_abs_axis = np.dot(joint_abs_pose[:3, :3], joint_axis)
-                    rotation = np.eye(4)
-                    rotation[:3, :3] = R.from_rotvec(joint_state * np.array(joint_abs_axis)).as_matrix()
-                    pose = np.dot(rotation, np.dot(translation_inv, pose))
-                    pose = np.dot(translation, pose)
-                metadata['linkAbsPoses'].append(pose)
+            # motion = frame_metadata['motions'][0]
+            # link_names = [link['name'] for link in rest_state_data['links']]
+            # for i, link in enumerate(rest_state_data['links']):
+            #     if link['virtual']:
+            #         continue
+            #     joint = rest_state_data['joints'][i]
+            #     pose = np.reshape(link['abs_pose'], (4, 4), order='F')
+            #     if link['name'] == f'link_{motion["partId"]}':
+            #         rest_state = 0
+            #         if io.file_exist(self.defined_rest_state_file):
+            #             defined_rest_state = pd.read_csv(self.defined_rest_state_file, dtype=str)
+            #             if object_id in defined_rest_state['objectId'].tolist():
+            #                 rest_state = float(
+            #                     defined_rest_state[defined_rest_state['objectId'] == object_id]['restState'])
+            #         joint_state = np.abs(motion['value'] - rest_state)
+            #         joint_axis = joint['axis']
+            #         joint_pose = np.reshape(joint['pose2link'], (4, 4), order='F')
+            #         joint_parent = joint['parent']
+            #         parent_link = rest_state_data['links'][link_names.index(joint_parent)]
+            #         parent_link_abs_pose = np.asarray(parent_link['abs_pose']).reshape((4, 4), order='F')
+            #         joint_abs_pose = np.dot(parent_link_abs_pose, joint_pose)
+            #         translation = np.eye(4)
+            #         translation_inv = np.eye(4)
+            #         translation[:3, 3] = joint_abs_pose[:3, 3]
+            #         translation_inv[:3, 3] = -joint_abs_pose[:3, 3]
+            #         joint_abs_axis = np.dot(joint_abs_pose[:3, :3], joint_axis)
+            #         rotation = np.eye(4)
+            #         rotation[:3, :3] = R.from_rotvec(joint_state * np.array(joint_abs_axis)).as_matrix()
+            #         pose = np.dot(rotation, np.dot(translation_inv, pose))
+            #         pose = np.dot(translation, pose)
+            #     metadata['linkAbsPoses'].append(pose)
 
         return metadata
 
@@ -137,23 +137,34 @@ class ProcStage1Impl:
                 depth_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
                                                 input_each['objectId'], self.render_cfg.depth_folder,
                                                 input_each['depthFrame'])
-                mask_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
-                                               input_each['objectId'], self.render_cfg.mask_folder,
-                                               input_each['maskFrame'])
+                    
                 metadata_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
                                              input_each['objectId'], self.render_cfg.metadata_folder,
                                              input_each['metadata'])
 
                 frame_index = int(input_each['depthFrame'].split('_d' + self.render_cfg.depth_ext)[0].split('-')[-1])
                 depth_data = np.asarray(Image.open(depth_frame_path))
+
+                for i, mask in enumerate(input_each['maskFrame']):
+                    mask_frame_path = os.path.join(self.render_cfg.render_dir, input_each['objectCat'],
+                                                input_each['objectId'], self.render_cfg.mask_folder,
+                                                mask)
+                    mask_frame = np.asarray(Image.open(mask_frame_path))
+                    empty_points = mask_frame[:, :, 3] == 0
+                    mask_tmp = mask_frame[~empty_points][:, :3]
+                    link_mask = -np.ones(mask_tmp.shape[0])
+                    base_pixels = np.all(mask_tmp == [0, 0, 0], axis=-1)
+                    part_pixels = ~base_pixels
+                    link_mask[part_pixels] = mask
             # uint8 mask, invalid value is 255
-            mask_frame = np.asarray(Image.open(mask_frame_path))
-            rest_state_data = io.read_json(rest_state_data_path)
-            num_parts = len([link for link in rest_state_data['links'] if link if not link['virtual']])
-            assert depth_data.shape[:2] == mask_frame.shape[:2]
-            metadata = self.get_metadata(input_each['objectId'], metadata_path, frame_index, num_parts, rest_state_data)
             if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
                     DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
+                mask_frame = np.asarray(Image.open(mask_frame_path))
+                rest_state_data = io.read_json(rest_state_data_path)
+                num_parts = len([link for link in rest_state_data['links'] if link if not link['virtual']])
+                assert depth_data.shape[:2] == mask_frame.shape[:2]
+                metadata = self.get_metadata(input_each['objectId'], metadata_path, frame_index, num_parts, rest_state_data)
+
                 x_range = np.linspace(-1, 1, self.width)
                 y_range = np.linspace(1, -1, self.height)
                 x, y = np.meshgrid(x_range, y_range)
@@ -178,13 +189,8 @@ class ProcStage1Impl:
                 # shape 4xn
                 points_world = np.dot(np.linalg.inv(view_mat), points_camera)
             elif DatasetName[self.dataset_name] == DatasetName.MOTIONNET:
-                empty_points = mask_frame[:, :, 3] == 0
-                mask_tmp = mask_frame[~empty_points][:, :3]
-                link_mask = np.zeros(mask_tmp.shape[0])
-                base_pixels = np.all(mask_tmp == [0, 0, 0], axis=-1)
-                part_pixels = ~base_pixels
-                link_mask[base_pixels] = 1
-                link_mask[part_pixels] = 2
+                num_parts = len(input_each['maskFrame']) + 1
+                metadata = self.get_metadata(input_each['objectId'], metadata_path, frame_index, num_parts)
                 x_range = np.linspace(0, self.width, self.width)
                 y_range = np.linspace(0, self.height, self.height)
                 intrinsic = metadata['intrinsic']
@@ -209,43 +215,49 @@ class ProcStage1Impl:
                 view_mat = extrinsic
 
             # transform links to rest state
-            points_rest_state = np.empty_like(points_world)
-            parts_camera2rest_state = []
-            for link_idx, link in enumerate(rest_state_data['links']):
-                if link['virtual']:
-                    continue
-                link_points_world = points_world[:, link_mask == link_idx]
-                # virtual link link_index is -1
-                current_part_pose = metadata['linkAbsPoses'][link['part_index']]
-                rest_state_pose = np.reshape(link['abs_pose'], (4, 4), order='F')
-                transform2rest_state = np.dot(rest_state_pose, np.linalg.inv(current_part_pose))
-                link_points_rest_state = np.dot(transform2rest_state, link_points_world)
-                points_rest_state[:, link_mask == link_idx] = link_points_rest_state
-                # points in camera space to rest state
-                camera2rest_state = np.dot(transform2rest_state, np.linalg.inv(view_mat))
-                # shape num parts x 16
-                parts_camera2rest_state.append(camera2rest_state.flatten('F'))
-            parts_camera2rest_state = np.asarray(parts_camera2rest_state)
-            # shape nx3
+            # points_rest_state = np.empty_like(points_world)
+            # parts_camera2rest_state = []
+            # for link_idx, link in enumerate(rest_state_data['links']):
+            #     if link['virtual']:
+            #         continue
+            #     link_points_world = points_world[:, link_mask == link_idx]
+            #     # virtual link link_index is -1
+            #     current_part_pose = metadata['linkAbsPoses'][link['part_index']]
+            #     rest_state_pose = np.reshape(link['abs_pose'], (4, 4), order='F')
+            #     transform2rest_state = np.dot(rest_state_pose, np.linalg.inv(current_part_pose))
+            #     link_points_rest_state = np.dot(transform2rest_state, link_points_world)
+            #     points_rest_state[:, link_mask == link_idx] = link_points_rest_state
+            #     # points in camera space to rest state
+            #     camera2rest_state = np.dot(transform2rest_state, np.linalg.inv(view_mat))
+            #     # shape num parts x 16
+            #     parts_camera2rest_state.append(camera2rest_state.flatten('F'))
+            # parts_camera2rest_state = np.asarray(parts_camera2rest_state)
+            # # shape nx3
             points_camera_p3 = points_camera.transpose()[:, :3]
-            points_world_p3 = points_world.transpose()[:, :3]
-            points_rest_state_p3 = points_rest_state.transpose()[:, :3]
+            # points_world_p3 = points_world.transpose()[:, :3]
+            # points_rest_state_p3 = points_rest_state.transpose()[:, :3]
 
             # viewer = Viewer(points_world_p3, colors=Viewer.rgba_by_index(0))
             # viewer.show()
 
             camera2base_matrix = np.linalg.inv(view_mat).flatten('F')
+            # instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
             instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
             h5frame = h5file.require_group(instance_name)
-            h5frame.create_dataset("mask", shape=link_mask.shape, data=link_mask, compression="gzip")
-            h5frame.create_dataset("points_camera", shape=points_camera_p3.shape, data=points_camera_p3,
+            h5frame.create_dataset("seg_per_point", shape=link_mask.shape, data=link_mask, compression="gzip")
+            h5frame.create_dataset("camcs_per_point", shape=points_camera_p3.shape, data=points_camera_p3,
                                    compression="gzip")
-            h5frame.create_dataset("points_rest_state", shape=points_rest_state_p3.shape, data=points_rest_state_p3,
-                                   compression="gzip")
-            h5frame.create_dataset("parts_transformation", shape=parts_camera2rest_state.shape,
-                                   data=parts_camera2rest_state, compression="gzip")
-            h5frame.create_dataset("base_transformation", shape=camera2base_matrix.shape,
-                                   data=camera2base_matrix, compression="gzip")
+            # h5frame.create_dataset("points_rest_state", shape=points_rest_state_p3.shape, data=points_rest_state_p3,
+            #                        compression="gzip")
+            # h5frame.create_dataset("parts_transformation", shape=parts_camera2rest_state.shape,
+            #                        data=parts_camera2rest_state, compression="gzip")
+            extrinsic = extrinsic.flatten(order='F')
+            intrinsic = intrinsic.flatten(order='F')
+            h5frame.create_dataset("intrinsic", shape=intrinsic.shape,
+                                   data=intrinsic, compression="gzip")
+            h5frame.create_dataset("extrinsic", shape=extrinsic.shape,
+                                   data=extrinsic, compression="gzip")
+
             bar.next()
         bar.finish()
         h5file.close()
@@ -301,8 +313,8 @@ class ProcStage1:
         io.ensure_dir_exists(self.cfg.paths.preprocess.tmp_dir)
         input_data.to_csv(os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.input_files))
 
-        motion_data_df = input_data.drop_duplicates(subset=['objectCat', 'objectId', 'motion'])
-        self.preprocess_motion_data(motion_data_df)
+        # motion_data_df = input_data.drop_duplicates(subset=['objectCat', 'objectId', 'motion'])
+        # self.preprocess_motion_data(motion_data_df)
         io.ensure_dir_exists(self.cfg.paths.preprocess.output_dir)
 
         num_processes = min(cpu_count(), self.cfg.num_workers)
