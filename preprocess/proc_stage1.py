@@ -155,7 +155,8 @@ class ProcStage1Impl:
                     link_mask = -np.ones(mask_tmp.shape[0])
                     base_pixels = np.all(mask_tmp == [0, 0, 0], axis=-1)
                     part_pixels = ~base_pixels
-                    link_mask[part_pixels] = mask
+                    print(mask)
+                    link_mask[part_pixels] = float(os.path.splitext(mask)[0].split('_')[-1])
             # uint8 mask, invalid value is 255
             if DatasetName[self.dataset_name] == DatasetName.SAPIEN or \
                     DatasetName[self.dataset_name] == DatasetName.SHAPE2MOTION:
@@ -244,6 +245,7 @@ class ProcStage1Impl:
             # instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
             instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
             h5frame = h5file.require_group(instance_name)
+            print(link_mask)
             h5frame.create_dataset("seg_per_point", shape=link_mask.shape, data=link_mask, compression="gzip")
             h5frame.create_dataset("camcs_per_point", shape=points_camera_p3.shape, data=points_camera_p3,
                                    compression="gzip")
@@ -366,21 +368,21 @@ class ProcStage1:
                     viz_output_filename = key
                     viz_output_path = os.path.join(viz_output_dir, viz_output_filename)
 
-                    viewer = Viewer(h5group['points_camera'][:], mask=h5group['mask'][:])
+                    viewer = Viewer(h5group['camcs_per_point'][:], mask=h5group['seg_per_point'][:])
                     if self.cfg.show:
                         viewer.show(window_name=viz_output_filename + '_points_camera')
                     else:
                         viewer.render(fig_path=viz_output_path + '_points_camera.jpg')
-                    if self.cfg.export:
-                        viewer.export(mesh_path=viz_output_path + '_points_camera.ply')
-                    viewer.reset()
-                    viewer.add_geometry(h5group['points_rest_state'][:], mask=h5group['mask'][:])
-                    if self.cfg.show:
-                        viewer.show(window_name=viz_output_filename + '_points_rest_state')
-                    else:
-                        viewer.render(fig_path=viz_output_path + '_points_rest_state.jpg')
-                    if self.cfg.export:
-                        viewer.export(mesh_path=viz_output_path + '_points_rest_state.ply')
+                    # if self.cfg.export:
+                    #     viewer.export(mesh_path=viz_output_path + '_points_camera.ply')
+                    # viewer.reset()
+                    # viewer.add_geometry(h5group['points_rest_state'][:], mask=h5group['mask'][:])
+                    # if self.cfg.show:
+                    #     viewer.show(window_name=viz_output_filename + '_points_rest_state')
+                    # else:
+                    #     viewer.render(fig_path=viz_output_path + '_points_rest_state.jpg')
+                    # if self.cfg.export:
+                    #     viewer.export(mesh_path=viz_output_path + '_points_rest_state.ply')
                     del viewer
                     bar.next()
                 bar.finish()

@@ -11,15 +11,15 @@ defaults:
   - _self_ # https://hydra.cc/docs/upgrades/1.0_to_1.1/default_composition_order
 
 settings:
-  categories: ['OneDoor']
-  object_ids: ['46889']
+  categories: ['OneDoor-test']
+  object_ids: []
   # object_ids_path: "${paths.dataset_dir}/object_id.csv"
   object_ids_path: path
   articulation_ids: []
   stage1:
     process: true
   stage2:
-    process: False
+    process: false
     train_percent: 0.6
     split_seed: 1
     split_on: "objectId" # or articulationId, frameId
