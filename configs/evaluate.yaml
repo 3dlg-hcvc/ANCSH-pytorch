@@ -1,6 +1,7 @@
 version: "v1.0"
 
 optimization_result_path: ???
+num_parts: ???
 
 defaults:
   - paths: ???

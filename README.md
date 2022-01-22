@@ -60,7 +60,7 @@ optional arguments:
 - Kinematic Constrained Optimization
 ```bash
 # Use kinematic constrained optimization to infer the pred part pose 
-python optimize.py paths=shawn_lab ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS>
+python optimize.py paths=shawn_lab ancsh_results_path=<PATH_TO_ANCSH_RESULTS> npcs_results_path=<PATH_TO_NPCS_RESULTS> num_parts=<NUM OF PARTS>
 ```
 - Evalaution
 ```bash

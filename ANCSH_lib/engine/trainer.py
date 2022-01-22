@@ -75,7 +75,7 @@ class ANCSHTrainer:
             shuffle=False,
             num_workers=self.cfg.network.num_workers,
         )
-        self.log.info(f'Num {len(self.train_loader)} batches in test loader')
+        self.log.info(f'Num {len(self.test_loader)} batches in test loader')
 
     def train_epoch(self, epoch):
         self.log.info(f'>>>>>>>>>>>>>>>> Train Epoch {epoch} >>>>>>>>>>>>>>>>')

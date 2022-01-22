@@ -17,8 +17,7 @@ def main(cfg: DictConfig):
 
     combined_result_path = cfg.optimization_result_path
 
-    train_path = cfg.paths.preprocess.output.train
-    num_parts = utils.get_num_parts(train_path)
+    num_parts = cfg.num_parts
     log.info(f'Instances in dataset have {num_parts} parts')
 
     evaluator = ANCSHEvaluator(cfg, combined_result_path, num_parts=num_parts)

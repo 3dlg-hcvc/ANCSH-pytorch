@@ -24,10 +24,7 @@ def main(cfg: DictConfig):
 
     utils.set_random_seed(cfg.random_seed)
 
-    train_path = cfg.paths.preprocess.output.train
-
-    num_parts = utils.get_num_parts(train_path)
-    # num_parts = 3
+    num_parts = cfg.num_parts
     log.info(f'Instances in dataset have {num_parts} parts')
 
     optimizer = ANCSHOptimizer(cfg, ancsh_results_path, npcs_results_path, num_parts=num_parts)
