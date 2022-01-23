@@ -25,8 +25,8 @@ def main(cfg: DictConfig):
     data_path = {"train": train_path, "test": test_path}
 
     num_parts = utils.get_num_parts(train_path)
-    test_num_parts = utils.get_num_parts(test_path)
-    assert num_parts == test_num_parts
+    # test_num_parts = utils.get_num_parts(test_path)
+    # assert num_parts == test_num_parts
     log.info(f'Instances in dataset have {num_parts} parts')
 
     network_type = NetworkType[cfg.network.network_type]

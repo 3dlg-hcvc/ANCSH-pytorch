@@ -109,7 +109,8 @@ class ANCSHEvaluator:
         self.results = {}
         self.log.info(f"Load the data: {time()-start} seconds")
 
-    def process_ANCSH(self, gt=False):
+    def process_ANCSH(self, gt=False, do_eval=True):
+        self.do_eval = do_eval
         self.results = []
         # flag = False
         for instance in self.instances:
@@ -126,31 +127,34 @@ class ANCSHEvaluator:
                 pred_npcs_per_point = ins_combined[f"{prefix}npcs_per_point"][:]
                 pred_naocs_per_point = ins_combined[f"{prefix}naocs_per_point"][:]
 
-                gt_naocs_per_point = ins_combined["gt_naocs_per_point"][:]
+                if do_eval:
+                    gt_naocs_per_point = ins_combined["gt_naocs_per_point"][:]
 
                 pred_unitvec_per_point = ins_combined[f"{prefix}unitvec_per_point"][:]
                 pred_heatmap_per_point = ins_combined[f"{prefix}heatmap_per_point"][:]
                 pred_axis_per_point = ins_combined[f"{prefix}axis_per_point"][:]
                 pred_joint_cls_per_point = ins_combined[f"{prefix}joint_cls_per_point"][:]
 
-                gt_unitvec_per_point = ins_combined["gt_unitvec_per_point"][:]
-                gt_heatmap_per_point = ins_combined["gt_heatmap_per_point"][:]
-                gt_axis_per_point = ins_combined["gt_axis_per_point"][:]
-                gt_joint_cls_per_point = ins_combined["gt_joint_cls_per_point"][:]
+                if do_eval:
+                    gt_unitvec_per_point = ins_combined["gt_unitvec_per_point"][:]
+                    gt_heatmap_per_point = ins_combined["gt_heatmap_per_point"][:]
+                    gt_axis_per_point = ins_combined["gt_axis_per_point"][:]
+                    gt_joint_cls_per_point = ins_combined["gt_joint_cls_per_point"][:]
 
-                gt_npcs_scale = ins_combined["gt_npcs2cam_scale"][:]
-                gt_npcs_rt = ins_combined["gt_npcs2cam_rt"][:]
-                gt_naocs_scale = ins_combined["gt_naocs2cam_scale"][:]
-                gt_naocs_rt = ins_combined["gt_naocs2cam_rt"][:]
+                    gt_npcs_scale = ins_combined["gt_npcs2cam_scale"][:]
+                    gt_npcs_rt = ins_combined["gt_npcs2cam_rt"][:]
+                    gt_naocs_scale = ins_combined["gt_naocs2cam_scale"][:]
+                    gt_naocs_rt = ins_combined["gt_naocs2cam_rt"][:]
 
                 pred_npcs_scale = ins_combined[f"{prefix}npcs2cam_scale"][:]
                 pred_npcs_rt = ins_combined[f"{prefix}npcs2cam_rt"][:]
 
-                gt_jointIndex_per_point = gt_joint_cls_per_point
+                if do_eval:
+                    gt_jointIndex_per_point = gt_joint_cls_per_point
 
-                # Get the norm factors and corners used to calculate NPCS to calculate the 3dbbx
-                gt_norm_factors = ins_combined["gt_norm_factors"]
-                gt_corners = ins_combined["gt_norm_corners"]
+                    # Get the norm factors and corners used to calculate NPCS to calculate the 3dbbx
+                    gt_norm_factors = ins_combined["gt_norm_factors"]
+                    gt_corners = ins_combined["gt_norm_corners"]
 
                 result = {
                     "joint_is_valid": [True],
@@ -171,21 +175,22 @@ class ANCSHEvaluator:
                     "err_joint_line": [],
                 }
                 for partIndex in range(self.num_parts):
-                    norm_factor = gt_norm_factors[partIndex]
-                    corner = gt_corners[partIndex]
-                    npcs_corner = np.zeros_like(corner)
-                    # Calculatet the corners in npcs
-                    npcs_corner[0] = (
-                        np.array([0.5, 0.5, 0.5])
-                        - 0.5 * (corner[1] - corner[0]) * norm_factor
-                    )
-                    npcs_corner[1] = (
-                        np.array([0.5, 0.5, 0.5])
-                        + 0.5 * (corner[1] - corner[0]) * norm_factor
-                    )
-                    # Calculate the gt bbx
-                    gt_scale = npcs_corner[1] - npcs_corner[0]
-                    gt_3dbbx = get_3d_bbox(gt_scale, shift=np.array([0.5, 0.5, 0.5]))
+                    if do_eval:
+                        norm_factor = gt_norm_factors[partIndex]
+                        corner = gt_corners[partIndex]
+                        npcs_corner = np.zeros_like(corner)
+                        # Calculatet the corners in npcs
+                        npcs_corner[0] = (
+                            np.array([0.5, 0.5, 0.5])
+                            - 0.5 * (corner[1] - corner[0]) * norm_factor
+                        )
+                        npcs_corner[1] = (
+                            np.array([0.5, 0.5, 0.5])
+                            + 0.5 * (corner[1] - corner[0]) * norm_factor
+                        )
+                        # Calculate the gt bbx
+                        gt_scale = npcs_corner[1] - npcs_corner[0]
+                        gt_3dbbx = get_3d_bbox(gt_scale, shift=np.array([0.5, 0.5, 0.5]))
                     # Calculate the pred bbx
                     pred_part_points_index = np.where(
                         pred_seg_per_point == partIndex
@@ -199,53 +204,57 @@ class ANCSHEvaluator:
                     
                     pred_scale = 2 * np.max(abs(centered_npcs), axis=0)
                     pred_3dbbx = get_3d_bbox(pred_scale, np.array([0.5, 0.5, 0.5]))
-
-                    # Record the pose scale and volume error
-                    result["err_pose_scale"].append(
-                        np.linalg.norm(
-                            pred_scale * pred_npcs_scale[partIndex]
-                            - gt_scale * gt_npcs_scale[partIndex]
-                        )
-                    )
-                    # todo: whethere to take if it's smaller than 1, then it needs to consider the ratio
-                    ratio_pose_volume = pred_scale[0] * pred_scale[1] * pred_scale[2] * pred_npcs_scale[partIndex]**3 / (
-                            gt_scale[0] * gt_scale[1] * gt_scale[2] * gt_npcs_scale[partIndex]**3
-                        )
-
-                    # if ratio_pose_volume == 0:
-                    #     import pdb
-                    #     pdb.set_trace()
                     
-
-                    if ratio_pose_volume > 1:
-                        result["err_pose_volume"].append(
-                            ratio_pose_volume - 1
+                    if do_eval:
+                        # Record the pose scale and volume error
+                        result["err_pose_scale"].append(
+                            np.linalg.norm(
+                                pred_scale * pred_npcs_scale[partIndex]
+                                - gt_scale * gt_npcs_scale[partIndex]
+                            )
                         )
-                    else:
-                        result["err_pose_volume"].append(
-                            1 / ratio_pose_volume - 1
-                        )
+                        # todo: whethere to take if it's smaller than 1, then it needs to consider the ratio
+                        ratio_pose_volume = pred_scale[0] * pred_scale[1] * pred_scale[2] * pred_npcs_scale[partIndex]**3 / (
+                                gt_scale[0] * gt_scale[1] * gt_scale[2] * gt_npcs_scale[partIndex]**3
+                            )
 
-                    # Calcualte the mean relative error for the parts
-                    # This evaluation metric seems wierd, don't code it
-                    # https://github.com/dragonlong/articulated-pose/blob/master/evaluation/eval_pose_err.py#L263
-                    # https://github.com/dragonlong/articulated-pose/blob/master/evaluation/eval_pose_err.py#L320
+                        # if ratio_pose_volume == 0:
+                        #     import pdb
+                        #     pdb.set_trace()
+                        
 
-                    # Calculatet the 3diou for each part
-                    gt_scaled_3dbbx = gt_3dbbx * gt_npcs_scale[partIndex]
+                        if ratio_pose_volume > 1:
+                            result["err_pose_volume"].append(
+                                ratio_pose_volume - 1
+                            )
+                        else:
+                            result["err_pose_volume"].append(
+                                1 / ratio_pose_volume - 1
+                            )
+
+                        # Calcualte the mean relative error for the parts
+                        # This evaluation metric seems wierd, don't code it
+                        # https://github.com/dragonlong/articulated-pose/blob/master/evaluation/eval_pose_err.py#L263
+                        # https://github.com/dragonlong/articulated-pose/blob/master/evaluation/eval_pose_err.py#L320
+
+                        # Calculatet the 3diou for each part
+                        gt_scaled_3dbbx = gt_3dbbx * gt_npcs_scale[partIndex]
                     pred_scaled_3dbbx = pred_3dbbx * pred_npcs_scale[partIndex]
-                    gt_cam_3dbbx = (
-                        np.dot(gt_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, :3], gt_scaled_3dbbx.T).T
-                        + gt_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, 3].T
-                    )
+                    if do_eval:
+                        gt_cam_3dbbx = (
+                            np.dot(gt_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, :3], gt_scaled_3dbbx.T).T
+                            + gt_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, 3].T
+                        )
                     pred_cam_3dbbx = (
                         np.dot(pred_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, :3], pred_scaled_3dbbx.T).T
                         + pred_npcs_rt[partIndex].reshape((4, 4), order='F')[:3, 3].T
                     )
-                    iou_cam_3dbbx = iou_3d(gt_cam_3dbbx, pred_cam_3dbbx)
-                    result["gt_cam_3dbbx"].append(gt_cam_3dbbx)
+                    if do_eval:
+                        iou_cam_3dbbx = iou_3d(gt_cam_3dbbx, pred_cam_3dbbx)
+                        result["gt_cam_3dbbx"].append(gt_cam_3dbbx)
                     result["pred_cam_3dbbx"].append(pred_cam_3dbbx)
-                    result["iou_cam_3dbbx"].append(iou_cam_3dbbx)
+                    if do_eval:
+                        result["iou_cam_3dbbx"].append(iou_cam_3dbbx)
 
                     # Calculate the evaluation metric for the joints
                     # Calculate the scale and translation from naocs to npcs
@@ -302,48 +311,49 @@ class ANCSHEvaluator:
                         ).T
                         result["pred_joint_axis_cam"].append(pred_joint_axis_cam)
                         result["pred_joint_pt_cam"].append(pred_joint_pt_cam)
-                        # Calculate the gt joint info
-                        gt_offset = (
-                            gt_unitvec_per_point
-                            * (1 - gt_heatmap_per_point.reshape(-1, 1))
-                            * thres_r
-                        )
-                        gt_joint_pts = gt_naocs_per_point + gt_offset
-                        gt_joint_points_index = np.where(
-                            gt_jointIndex_per_point == partIndex
-                        )[0]
-                        if len(gt_joint_points_index) == 0:
-                            self.log.warning(f"Invalid JOINT instance {instance}")
-                            result = {"joint_is_valid": [False]}
-                            break
-                        gt_joint_axis = np.median(
-                            gt_axis_per_point[gt_joint_points_index], axis=0
-                        )
-                            
-                        gt_joint_pt = np.median(gt_joint_pts[gt_joint_points_index], axis=0)
-                        result["gt_joint_axis_naocs"].append(gt_joint_axis)
-                        result["gt_joint_pt_naocs"].append(gt_joint_pt)
-                        # Conver the gt joint into camera coordinate using the naocs pose, naocs -> camera
-                        gt_joint_pt_cam = (
-                            np.dot(gt_naocs_rt.reshape((4, 4), order='F')[:3, :3], gt_naocs_scale * gt_joint_pt.T).T
-                            + gt_naocs_rt.reshape((4, 4), order='F')[:3, 3]
-                        )
-                        gt_joint_axis_cam = np.dot(gt_naocs_rt.reshape((4, 4), order='F')[:3, :3], gt_joint_axis.T).T
-                        result["gt_joint_axis_cam"].append(gt_joint_axis_cam)
-                        result["gt_joint_pt_cam"].append(gt_joint_pt_cam)
+                        if do_eval:
+                            # Calculate the gt joint info
+                            gt_offset = (
+                                gt_unitvec_per_point
+                                * (1 - gt_heatmap_per_point.reshape(-1, 1))
+                                * thres_r
+                            )
+                            gt_joint_pts = gt_naocs_per_point + gt_offset
+                            gt_joint_points_index = np.where(
+                                gt_jointIndex_per_point == partIndex
+                            )[0]
+                            if len(gt_joint_points_index) == 0:
+                                self.log.warning(f"Invalid JOINT instance {instance}")
+                                result = {"joint_is_valid": [False]}
+                                break
+                            gt_joint_axis = np.median(
+                                gt_axis_per_point[gt_joint_points_index], axis=0
+                            )
+                                
+                            gt_joint_pt = np.median(gt_joint_pts[gt_joint_points_index], axis=0)
+                            result["gt_joint_axis_naocs"].append(gt_joint_axis)
+                            result["gt_joint_pt_naocs"].append(gt_joint_pt)
+                            # Conver the gt joint into camera coordinate using the naocs pose, naocs -> camera
+                            gt_joint_pt_cam = (
+                                np.dot(gt_naocs_rt.reshape((4, 4), order='F')[:3, :3], gt_naocs_scale * gt_joint_pt.T).T
+                                + gt_naocs_rt.reshape((4, 4), order='F')[:3, 3]
+                            )
+                            gt_joint_axis_cam = np.dot(gt_naocs_rt.reshape((4, 4), order='F')[:3, :3], gt_joint_axis.T).T
+                            result["gt_joint_axis_cam"].append(gt_joint_axis_cam)
+                            result["gt_joint_pt_cam"].append(gt_joint_pt_cam)
 
-                        # Calculate the error between the gt joints and pred joints in the camera coordinate
-                        err_joint_axis = axis_diff_degree(
-                            gt_joint_axis_cam, pred_joint_axis_cam
-                        )
-                        err_joint_line = dist_between_3d_lines(
-                            gt_joint_pt_cam,
-                            gt_joint_axis_cam,
-                            pred_joint_pt_cam,
-                            pred_joint_axis_cam,
-                        )
-                        result["err_joint_axis"].append(err_joint_axis)
-                        result["err_joint_line"].append(err_joint_line)
+                            # Calculate the error between the gt joints and pred joints in the camera coordinate
+                            err_joint_axis = axis_diff_degree(
+                                gt_joint_axis_cam, pred_joint_axis_cam
+                            )
+                            err_joint_line = dist_between_3d_lines(
+                                gt_joint_pt_cam,
+                                gt_joint_axis_cam,
+                                pred_joint_pt_cam,
+                                pred_joint_axis_cam,
+                            )
+                            result["err_joint_axis"].append(err_joint_axis)
+                            result["err_joint_line"].append(err_joint_line)
 
                 self.results.append(result)
                 # self.log.info(f"Ins {instance} is done in {time() - start} seconds")
@@ -354,33 +364,34 @@ class ANCSHEvaluator:
 
     def print_and_save(self):
         # Print the mean errors for scale, volumeerr_pose_scale
-        err_pose_scale = []
-        err_pose_volume = []
-        iou_cam_3dbbx =  []
-        err_joint_axis = []
-        err_joint_line = [] 
-        for result in self.results:
-            if not result == {}:
-                if result["joint_is_valid"][0] == True:
-                    err_pose_scale.append(result["err_pose_scale"]) 
-                    err_pose_volume.append(result["err_pose_volume"])
-                    iou_cam_3dbbx.append(result["iou_cam_3dbbx"])
-                    err_joint_axis.append(result["err_joint_axis"])
-                    err_joint_line.append(result["err_joint_line"])
-        mean_err_pose_scale = np.mean(err_pose_scale, axis=0)
-        mean_err_pose_volume = np.mean(err_pose_volume, axis=0)
-        self.log.info(f"Mean Error for pose scale: {mean_err_pose_scale}")
-        self.log.info(f"Mean Error for pose volume: {mean_err_pose_volume}")
+        if self.do_eval:
+            err_pose_scale = []
+            err_pose_volume = []
+            iou_cam_3dbbx =  []
+            err_joint_axis = []
+            err_joint_line = [] 
+            for result in self.results:
+                if not result == {}:
+                    if result["joint_is_valid"][0] == True:
+                        err_pose_scale.append(result["err_pose_scale"]) 
+                        err_pose_volume.append(result["err_pose_volume"])
+                        iou_cam_3dbbx.append(result["iou_cam_3dbbx"])
+                        err_joint_axis.append(result["err_joint_axis"])
+                        err_joint_line.append(result["err_joint_line"])
+            mean_err_pose_scale = np.mean(err_pose_scale, axis=0)
+            mean_err_pose_volume = np.mean(err_pose_volume, axis=0)
+            self.log.info(f"Mean Error for pose scale: {mean_err_pose_scale}")
+            self.log.info(f"Mean Error for pose volume: {mean_err_pose_volume}")
 
-        # Print the mean iou for different parts
-        mean_iou_cam_3dbbx = np.mean(iou_cam_3dbbx, axis=0)
-        self.log.info(f"Mean iou for different parts is: {mean_iou_cam_3dbbx}")
+            # Print the mean iou for different parts
+            mean_iou_cam_3dbbx = np.mean(iou_cam_3dbbx, axis=0)
+            self.log.info(f"Mean iou for different parts is: {mean_iou_cam_3dbbx}")
 
-        # Print the mean error for joints in the camera coordinate
-        mean_err_joint_axis = np.mean(err_joint_axis, axis=0)
-        mean_err_joint_line = np.mean(err_joint_line, axis=0)
-        self.log.info(f"Mean joint axis error in camera coordinate (degree): {mean_err_joint_axis}")
-        self.log.info(f"Mean joint axis line distance in camera coordinate (m): {mean_err_joint_line}")
+            # Print the mean error for joints in the camera coordinate
+            mean_err_joint_axis = np.mean(err_joint_axis, axis=0)
+            mean_err_joint_line = np.mean(err_joint_line, axis=0)
+            self.log.info(f"Mean joint axis error in camera coordinate (degree): {mean_err_joint_axis}")
+            self.log.info(f"Mean joint axis line distance in camera coordinate (m): {mean_err_joint_line}")
 
         io.ensure_dir_exists(self.cfg.paths.evaluation.output_dir)
         f = h5py.File(
@@ -389,11 +400,12 @@ class ANCSHEvaluator:
         )
         for k, v in self.f_combined.attrs.items():
             f.attrs[k] = v
-        f.attrs["err_pose_scale"] = mean_err_pose_scale
-        f.attrs["err_pose_volume"] = mean_err_pose_volume
-        f.attrs["iou_cam_3dbbx"] = mean_iou_cam_3dbbx
-        f.attrs["err_joint_axis"] = mean_err_joint_axis
-        f.attrs["err_joint_line"] = mean_err_joint_line
+        if self.do_eval:
+            f.attrs["err_pose_scale"] = mean_err_pose_scale
+            f.attrs["err_pose_volume"] = mean_err_pose_volume
+            f.attrs["iou_cam_3dbbx"] = mean_iou_cam_3dbbx
+            f.attrs["err_joint_axis"] = mean_err_joint_axis
+            f.attrs["err_joint_line"] = mean_err_joint_line
 
         self.log.info(f"Storing the evaluation results")
         for i, ins in enumerate(self.instances):
