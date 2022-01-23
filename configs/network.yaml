@@ -17,7 +17,7 @@ test:
   input_data: path
   inference_model: path
   render:
-      render: true
+      render: false
       show: false
       export: false
 

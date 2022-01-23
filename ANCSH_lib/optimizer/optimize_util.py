@@ -3,6 +3,9 @@ from time import time
 from scipy.spatial.transform import Rotation as srot
 from scipy.optimize import least_squares
 
+# 0 for prismatic, 1 for revolute
+JOINT_TYPE = [-1, 1]
+
 # Checks if a matrix is a valid rotation matrix.
 def isRotationMatrix(R):
     Rt = np.transpose(R)
@@ -284,12 +287,13 @@ def rot_diff_rad(rot1, rot2):
     theta = np.clip(( np.trace(np.matmul(rot1, rot2.T)) - 1 ) / 2, a_min=-1.0, a_max=1.0)
     return np.arccos( theta ) % (2*np.pi)
 
-def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_threshold, log, gt=False):
+def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_threshold, log, gt=False, do_eval=True):
     # log.info(f"Working on {ins}")
     start = time()
     prefix = 'gt_' if gt else 'pred_'
     camcs_per_point = ins_ancsh["camcs_per_point"]
-    gt_joint_type = ins_ancsh["gt_joint_type"]
+    if do_eval:
+        gt_joint_type = ins_ancsh["gt_joint_type"]
     # Get the predicted segmentation and npcs from the NPCS model results
     pred_npcs_per_point = ins_npcs[f"{prefix}npcs_per_point"]
     pred_seg_per_point = ins_npcs[f"{prefix}seg_per_point"]
@@ -297,8 +301,9 @@ def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_t
     pred_joint_cls_per_point = ins_ancsh[f"{prefix}joint_cls_per_point"]
     pred_axis_per_point = ins_ancsh[f"{prefix}axis_per_point"]
     # Get the gt pose for npcs2cam
-    gt_rt = ins_ancsh["gt_npcs2cam_rt"]
-    gt_scale = ins_ancsh["gt_npcs2cam_scale"]
+    if do_eval:
+        gt_rt = ins_ancsh["gt_npcs2cam_rt"]
+        gt_scale = ins_ancsh["gt_npcs2cam_scale"]
 
     # Get the point mask
     partIndex = []
@@ -334,18 +339,29 @@ def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_t
         else:
             data["joint_direction"] = np.array([np.nan, np.nan, np.nan])
 
-        assert gt_joint_type[i] >= 0
+        if do_eval:
+            assert gt_joint_type[i] >= 0
+            print(gt_joint_type)
 
-        # print(f"data processing time {time() - start}")
-        best_model, best_inliers = ransac(
-            data,
-            joint_transformation_estimator,
-            joint_transformation_verifier,
-            choose_threshold,
-            niter,
-            gt_joint_type[i],
-        )
-        # print(f"ransac time {time() - start}")
+            # print(f"data processing time {time() - start}")
+            best_model, best_inliers = ransac(
+                data,
+                joint_transformation_estimator,
+                joint_transformation_verifier,
+                choose_threshold,
+                niter,
+                gt_joint_type[i],
+            )
+            # print(f"ransac time {time() - start}")
+        else:
+            best_model, best_inliers = ransac(
+                data,
+                joint_transformation_estimator,
+                joint_transformation_verifier,
+                choose_threshold,
+                niter,
+                JOINT_TYPE[i],
+            )
         if best_model == None:
             log.warning(f"Invalid instance {ins}")
             return {
@@ -355,44 +371,55 @@ def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_t
         if i == 1:
             # Record the pred things and error for base part
             assert isRotationMatrix(best_model["rotation0"])
-            rdiff = rot_diff_degree(best_model["rotation0"], (gt_rt[0]).reshape((4, 4), order='F')[:3, :3])
-            tdiff = np.linalg.norm(best_model["translation0"] - (gt_rt[0]).reshape((4, 4), order='F')[:3, 3])
-            sdiff = np.linalg.norm(best_model["scale0"] - gt_scale[0])
+            if do_eval:
+                rdiff = rot_diff_degree(best_model["rotation0"], (gt_rt[0]).reshape((4, 4), order='F')[:3, :3])
+                tdiff = np.linalg.norm(best_model["translation0"] - (gt_rt[0]).reshape((4, 4), order='F')[:3, 3])
+                sdiff = np.linalg.norm(best_model["scale0"] - gt_scale[0])
             pred_scale.append(best_model["scale0"])
             rt = np.zeros((4, 4))
             rt[:3, :3] = best_model["rotation0"]
             rt[:3, 3] = best_model["translation0"]
             rt[3, 3] = 1
             pred_rt.append(rt.flatten('F'))
-            err_rotation.append(rdiff)
-            err_translation.append(tdiff)
-            err_scale.append(sdiff)
+            if do_eval:
+                err_rotation.append(rdiff)
+                err_translation.append(tdiff)
+                err_scale.append(sdiff)
         # Record the pred things and error for moving parts
-        rdiff = rot_diff_degree(best_model["rotation1"], (gt_rt[i]).reshape((4, 4), order='F')[:3, :3])
-        tdiff = np.linalg.norm(best_model["translation1"] - (gt_rt[i]).reshape((4, 4), order='F')[:3, 3])
-        sdiff = np.linalg.norm(best_model["scale1"] - gt_scale[i])
+        if do_eval:
+            rdiff = rot_diff_degree(best_model["rotation1"], (gt_rt[i]).reshape((4, 4), order='F')[:3, :3])
+            tdiff = np.linalg.norm(best_model["translation1"] - (gt_rt[i]).reshape((4, 4), order='F')[:3, 3])
+            sdiff = np.linalg.norm(best_model["scale1"] - gt_scale[i])
         pred_scale.append(best_model["scale1"])
         rt = np.zeros((4, 4))
         rt[:3, :3] = best_model["rotation1"]
         rt[:3, 3] = best_model["translation1"]
         rt[3, 3] = 1
         pred_rt.append(rt.flatten('F'))
-        err_rotation.append(rdiff)
-        err_translation.append(tdiff)
-        err_scale.append(sdiff)
+        if do_eval:
+            err_rotation.append(rdiff)
+            err_translation.append(tdiff)
+            err_scale.append(sdiff)
 
     # log.info(f"{ins} Done in {time() - start} seconds")
     # log.info(f"Pred Scale {pred_scale}")
     # log.info(f"Pred RT {pred_rt}")
 
-    return {
-        "is_valid": [True],
-        "pred_npcs2cam_scale": pred_scale,
-        "pred_npcs2cam_rt": pred_rt,
-        "err_rotation": err_rotation,
-        "err_translation": err_translation,
-        "err_scale": err_scale,
-    }
+    if do_eval:
+        return {
+            "is_valid": [True],
+            "pred_npcs2cam_scale": pred_scale,
+            "pred_npcs2cam_rt": pred_rt,
+            "err_rotation": err_rotation,
+            "err_translation": err_translation,
+            "err_scale": err_scale,
+        }
+    else:
+        return {
+            "is_valid": [True],
+            "pred_npcs2cam_scale": pred_scale,
+            "pred_npcs2cam_rt": pred_rt,
+        }
     
 
     
