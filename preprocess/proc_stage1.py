@@ -243,16 +243,12 @@ class ProcStage1Impl:
 
             camera2base_matrix = np.linalg.inv(view_mat).flatten('F')
             # instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
-            instance_name = f'{input_each["objectCat"]}_{input_each["objectId"]}_{input_each["articulationId"]}_{str(frame_index)}'
+            instance_name = input_each['depthFrame'].split('_d' + self.render_cfg.depth_ext)[0]
             h5frame = h5file.require_group(instance_name)
-            print(link_mask)
+            h5frame.attrs['numParts'] = num_parts
             h5frame.create_dataset("seg_per_point", shape=link_mask.shape, data=link_mask, compression="gzip")
             h5frame.create_dataset("camcs_per_point", shape=points_camera_p3.shape, data=points_camera_p3,
                                    compression="gzip")
-            # h5frame.create_dataset("points_rest_state", shape=points_rest_state_p3.shape, data=points_rest_state_p3,
-            #                        compression="gzip")
-            # h5frame.create_dataset("parts_transformation", shape=parts_camera2rest_state.shape,
-            #                        data=parts_camera2rest_state, compression="gzip")
             extrinsic = extrinsic.flatten(order='F')
             intrinsic = intrinsic.flatten(order='F')
             h5frame.create_dataset("intrinsic", shape=intrinsic.shape,
