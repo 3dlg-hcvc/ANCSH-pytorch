@@ -11,7 +11,7 @@ from multiprocessing import Pool, cpu_count
 from omegaconf import OmegaConf
 
 from tools.utils import io
-from tools.visualization import Viewer
+# from tools.visualization import Viewer
 from utils import DataLoader, URDFReader, DatasetName
 
 log = logging.getLogger('proc_stage1')
@@ -73,7 +73,7 @@ class ProcStage1Impl:
 
             frame_index = int(input_each['depthFrame'].split(self.render_cfg.depth_ext)[0])
             # float32 depth buffer, range from 0 to 1
-            depth_data = np.array(h5py.File(depth_frame_path, "r")["data"])
+            depth_data = np.array(h5py.File(depth_frame_path, "r")["data"]).flatten()
             # uint8 mask, invalid value is 255
             mask_frame = np.asarray(Image.open(mask_frame_path))
             rest_data_data = io.read_json(rest_state_data_path)
@@ -219,32 +219,32 @@ class ProcStage1:
                     h5f.copy(key, h5file)
         h5file.close()
 
-        if self.debug:
-            tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
-            with h5py.File(output_file_path, 'r') as h5file:
-                bar = Bar('Stage1 Visualization', max=len(h5file.keys()))
-                for key in h5file.keys():
-                    h5group = h5file[key]
-                    folder_names = key.split('_')
-                    viz_output_dir = os.path.join(tmp_dir, folder_names[0], folder_names[1], folder_names[2])
-                    viz_output_filename = key
-                    viz_output_path = os.path.join(viz_output_dir, viz_output_filename)
+        # if self.debug:
+        #     tmp_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+        #     with h5py.File(output_file_path, 'r') as h5file:
+        #         bar = Bar('Stage1 Visualization', max=len(h5file.keys()))
+        #         for key in h5file.keys():
+        #             h5group = h5file[key]
+        #             folder_names = key.split('_')
+        #             viz_output_dir = os.path.join(tmp_dir, folder_names[0], folder_names[1], folder_names[2])
+        #             viz_output_filename = key
+        #             viz_output_path = os.path.join(viz_output_dir, viz_output_filename)
 
-                    viewer = Viewer(h5group['points_camera'][:], mask=h5group['mask'][:])
-                    if self.cfg.show:
-                        viewer.show(window_name=viz_output_filename + '_points_camera')
-                    else:
-                        viewer.render(fig_path=viz_output_path + '_points_camera.jpg')
-                    if self.cfg.export:
-                        viewer.export(mesh_path=viz_output_path + '_points_camera.ply')
-                    viewer.reset()
-                    viewer.add_geometry(h5group['points_rest_state'][:], mask=h5group['mask'][:])
-                    if self.cfg.show:
-                        viewer.show(window_name=viz_output_filename + '_points_rest_state')
-                    else:
-                        viewer.render(fig_path=viz_output_path + '_points_rest_state.jpg')
-                    if self.cfg.export:
-                        viewer.export(mesh_path=viz_output_path + '_points_rest_state.ply')
-                    del viewer
-                    bar.next()
-                bar.finish()
+        #             viewer = Viewer(h5group['points_camera'][:], mask=h5group['mask'][:])
+        #             if self.cfg.show:
+        #                 viewer.show(window_name=viz_output_filename + '_points_camera')
+        #             else:
+        #                 viewer.render(fig_path=viz_output_path + '_points_camera.jpg')
+        #             if self.cfg.export:
+        #                 viewer.export(mesh_path=viz_output_path + '_points_camera.ply')
+        #             viewer.reset()
+        #             viewer.add_geometry(h5group['points_rest_state'][:], mask=h5group['mask'][:])
+        #             if self.cfg.show:
+        #                 viewer.show(window_name=viz_output_filename + '_points_rest_state')
+        #             else:
+        #                 viewer.render(fig_path=viz_output_path + '_points_rest_state.jpg')
+        #             if self.cfg.export:
+        #                 viewer.export(mesh_path=viz_output_path + '_points_rest_state.ply')
+        #             del viewer
+        #             bar.next()
+        #         bar.finish()

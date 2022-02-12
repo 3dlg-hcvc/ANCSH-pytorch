@@ -341,7 +341,7 @@ def optimize_with_kinematic(ins, ins_ancsh, ins_npcs, num_parts, niter, choose_t
 
         if do_eval:
             assert gt_joint_type[i] >= 0
-            print(gt_joint_type)
+            # print(gt_joint_type)
 
             # print(f"data processing time {time() - start}")
             best_model, best_inliers = ransac(

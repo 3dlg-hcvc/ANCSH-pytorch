@@ -20,7 +20,8 @@ settings:
     process: true
     train_percent: 0.6
     split_seed: 1
-    split_on: "objectId" # or articulationId, frameId
+    # split_on: "objectId" # or articulationId, frameId
+    split_on: "/local-scratch/localhome/hja40/Desktop/Research/proj-motionnet/ANCSH-pytorch/data/split_info.csv"
 
 params:
   joint_association_threshold: 0.2

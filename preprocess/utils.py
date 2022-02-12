@@ -7,7 +7,7 @@ from matplotlib import cm
 from urdfpy import URDF, JointLimit
 
 from tools.utils import io
-from tools.visualization import Viewer
+# from tools.visualization import Viewer
 
 # override attributes to make effort, velocity optional
 JointLimit._ATTRIBS = {
@@ -161,7 +161,8 @@ class URDFReader:
                     mesh.visual = trimesh.visual.create_visual()
                     link_mesh += mesh
                 # part mesh visualization
-                color = Viewer.rgba_by_index(link_idx)
+                # color = Viewer.rgba_by_index(link_idx)
+                color = list(cm.get_cmap('Set1')(link_idx))
                 color[-1] = 0.8
                 link_mesh.visual.vertex_colors = color
                 if self.debug:
