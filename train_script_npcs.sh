@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=6         # Number of CPUs (per task)
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=shawn_jiang@sfu.ca
-#SBATCH --output=/home/hanxiao/scratch/proj-motionnet/ancsh_output/ancsh/%x_%j.out
+#SBATCH --output=/home/hanxiao/scratch/proj-motionnet/ancsh_output/npcs/%x_%j.out
 #SBATCH --job-name=npcs
 echo 'Start'
 
