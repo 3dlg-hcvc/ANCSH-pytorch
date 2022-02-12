@@ -8,8 +8,8 @@ from multiprocessing import Pool, cpu_count
 from omegaconf import OmegaConf
 
 from tools.utils import io
-from ANCSH_lib.utils import NetworkType
-from tools.visualization import Viewer, ANCSHVisualizer
+# from ANCSH_lib.utils import NetworkType
+# from tools.visualization import Viewer, ANCSHVisualizer
 
 import utils
 from utils import JointType
@@ -126,7 +126,7 @@ class ProcStage2Impl:
             # process joints related ground truth
             link_names = [link['name'] for link in rest_state_data['links']]
             # transform joints to naocs space
-            viewer = Viewer()
+            # viewer = Viewer()
             naocs_joints = rest_state_data['joints']
             for i, joint in enumerate(rest_state_data['joints']):
                 if not joint:
@@ -153,14 +153,14 @@ class ProcStage2Impl:
                 joint_type = JointType[joint['type']].value
                 naocs_joints[i]['type'] = joint_type
 
-                if self.export:
-                    viewer.add_trimesh_arrows([naocs_joint_pos], [joint_axis], color=Viewer.rgba_by_index(joint_class))
+                # if self.export:
+                #     viewer.add_trimesh_arrows([naocs_joint_pos], [joint_axis], color=Viewer.rgba_by_index(joint_class))
 
-            if self.export:
-                tmp_data_dir = os.path.join(self.tmp_output_dir, row['objectCat'], row['objectId'],
-                                            row['articulationId'])
-                io.ensure_dir_exists(tmp_data_dir)
-                viewer.export(os.path.join(tmp_data_dir, instance_name + '_naocs_arrows.ply'))
+            # if self.export:
+            #     tmp_data_dir = os.path.join(self.tmp_output_dir, row['objectCat'], row['objectId'],
+            #                                 row['articulationId'])
+            #     io.ensure_dir_exists(tmp_data_dir)
+            #     viewer.export(os.path.join(tmp_data_dir, instance_name + '_naocs_arrows.ply'))
 
             valid_joints = [joint for joint in naocs_joints if joint if joint['type'] >= 0]
             num_valid_joints = len(valid_joints)
@@ -276,9 +276,15 @@ class ProcStage2:
         df_dataset = df_dataset[selected_categories & selected_object_ids & selected_articulation_ids]
 
         if io.file_exist(self.cfg.paths.preprocess.stage2.input.split_info, ext='.csv'):
-            input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info)
-            self.split_info = input_split_info.merge(df_dataset, how='inner',
-                                                     on=['objectCat', 'objectId', 'articulationId', 'frameId'])
+            input_split_info = pd.read_csv(self.cfg.paths.preprocess.stage2.input.split_info, dtype=object)
+            split_on_columns = ['objectCat', 'objectId', 'articulationId', 'frameId']
+            train_set = input_split_info[input_split_info["set"] == "train"]
+            val_set = input_split_info[input_split_info["set"] == "val"]
+            test_set = input_split_info[input_split_info["set"] == "test"]
+            train = train_set.merge(df_dataset, how='left', on=split_on_columns)
+            val = val_set.merge(df_dataset, how='left', on=split_on_columns)
+            test = test_set.merge(df_dataset, how='left', on=split_on_columns)
+            self.split_info = pd.concat([train, val, test], keys=["train", "val", "test"], names=['set', 'index'])
         else:
             # split to train, val, test
             log.info(f'Split on key {split_on}')
@@ -393,13 +399,13 @@ class ProcStage2:
                     h5f.copy(key, h5file)
         h5file.close()
 
-        if self.debug:
-            tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
-            io.ensure_dir_exists(tmp_data_dir)
+        # if self.debug:
+        #     tmp_data_dir = os.path.join(self.cfg.paths.preprocess.tmp_dir, self.tmp_output.folder_name)
+        #     io.ensure_dir_exists(tmp_data_dir)
 
-            with h5py.File(h5_output_path, 'r') as h5file:
-                visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
-                visualizer.point_size = 5
-                visualizer.arrow_sampling = 10
-                visualizer.prefix = ''
-                visualizer.render(show=self.show, export=tmp_data_dir, export_mesh=self.export)
+        #     with h5py.File(h5_output_path, 'r') as h5file:
+        #         visualizer = ANCSHVisualizer(h5file, NetworkType.ANCSH, gt=True, sampling=20)
+        #         visualizer.point_size = 5
+        #         visualizer.arrow_sampling = 10
+        #         visualizer.prefix = ''
+        #         visualizer.render(show=self.show, export=tmp_data_dir, export_mesh=self.export)

@@ -4,4 +4,3 @@ defaults:
 
 dataset_dir: "/home/sam/Development/Research/ancsh/ANCSH-pytorch/datasets/sapien"
 result_dir: "/home/sam/Development/Research/ancsh/ANCSH-pytorch/results"
-

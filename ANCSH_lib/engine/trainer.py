@@ -14,7 +14,7 @@ from ANCSH_lib.data import ANCSHDataset
 from ANCSH_lib import utils
 from ANCSH_lib.utils import AvgRecorder, NetworkType
 from tools.utils import io
-from tools.visualization import ANCSHVisualizer
+# from tools.visualization import ANCSHVisualizer
 
 
 class ANCSHTrainer:
@@ -189,36 +189,36 @@ class ANCSHTrainer:
                 pred = self.model(camcs_per_point)
                 if save_results:
                     self.save_results(pred, camcs_per_point, gt, id)
-                # loss_dict = self.model.losses(pred, gt)
-                # loss_weight = self.cfg.network.loss_weight
-                # loss = torch.tensor(0.0, device=self.device)
-                # # use different loss weight to calculate the final loss
-                # for k, v in loss_dict.items():
-                #     if k not in loss_weight:
-                #         raise ValueError(f"No loss weight for {k}")
-                #     loss += loss_weight[k] * v
+                loss_dict = self.model.losses(pred, gt)
+                loss_weight = self.cfg.network.loss_weight
+                loss = torch.tensor(0.0, device=self.device)
+                # use different loss weight to calculate the final loss
+                for k, v in loss_dict.items():
+                    if k not in loss_weight:
+                        raise ValueError(f"No loss weight for {k}")
+                    loss += loss_weight[k] * v
 
-                # # Used to calculate the avg loss
-                # for k, v in loss_dict.items():
-                #     if k not in val_error.keys():
-                #         val_error[k] = AvgRecorder()
-                #     val_error[k].update(v)
-                # val_error['total_loss'].update(loss)
+                # Used to calculate the avg loss
+                for k, v in loss_dict.items():
+                    if k not in val_error.keys():
+                        val_error[k] = AvgRecorder()
+                    val_error[k].update(v)
+                val_error['total_loss'].update(loss)
         # write the val_error into the tensorboard
-        # if self.writer is not None:
-        #     for k, v in val_error.items():
-        #         self.writer.add_scalar(f"val_error/{k}", val_error[k].avg, epoch)
+        if self.writer is not None:
+            for k, v in val_error.items():
+                self.writer.add_scalar(f"val_error/{k}", val_error[k].avg, epoch)
 
-        # loss_log = ''
-        # for k, v in val_error.items():
-        #     loss_log += '{}: {:.5f}  '.format(k, v.avg)
+        loss_log = ''
+        for k, v in val_error.items():
+            loss_log += '{}: {:.5f}  '.format(k, v.avg)
 
-        # self.log.info(
-        #     'Eval Epoch: {}/{} Loss: {} duration: {:.2f}'
-        #         .format(epoch, self.max_epochs, loss_log, time() - start_time))
+        self.log.info(
+            'Eval Epoch: {}/{} Loss: {} duration: {:.2f}'
+                .format(epoch, self.max_epochs, loss_log, time() - start_time))
         if save_results:
             self.test_result.close()
-        # return val_error
+        return val_error
 
     def train(self, start_epoch=0):
         self.model.train()
@@ -282,16 +282,16 @@ class ANCSHTrainer:
 
         self.eval_epoch(epoch, save_results=True)
 
-        # create visualizations of evaluation results
-        if self.cfg.test.render.render:
-            export_dir = os.path.join(self.cfg.paths.network.test.output_dir,
-                                      self.cfg.paths.network.test.visualization_folder)
-            io.ensure_dir_exists(export_dir)
-            inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
-                                          self.network_type.value + '_' + self.cfg.paths.network.test.inference_result)
-            with h5py.File(inference_path, "r") as inference_h5:
-                visualizer = ANCSHVisualizer(inference_h5, network_type=self.network_type)
-                visualizer.render(self.cfg.test.render.show, export=export_dir, export_mesh=self.cfg.test.render.export)
+        # # create visualizations of evaluation results
+        # if self.cfg.test.render.render:
+        #     export_dir = os.path.join(self.cfg.paths.network.test.output_dir,
+        #                               self.cfg.paths.network.test.visualization_folder)
+        #     io.ensure_dir_exists(export_dir)
+        #     inference_path = os.path.join(self.cfg.paths.network.test.output_dir,
+        #                                   self.network_type.value + '_' + self.cfg.paths.network.test.inference_result)
+        #     with h5py.File(inference_path, "r") as inference_h5:
+        #         visualizer = ANCSHVisualizer(inference_h5, network_type=self.network_type)
+        #         visualizer.render(self.cfg.test.render.show, export=export_dir, export_mesh=self.cfg.test.render.export)
 
     def save_results(self, pred, camcs_per_point, gt, id):
         # Save the results and gt into hdf5 for further optimization

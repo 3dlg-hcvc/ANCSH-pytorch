@@ -109,6 +109,24 @@ class ANCSHEvaluator:
         self.results = {}
         self.log.info(f"Load the data: {time()-start} seconds")
 
+        # err_rotation = []
+        # err_translation = []
+
+        # test_filter = ["0042", "0014"]
+        # for ins in self.instances:
+        #     if self.f_combined[ins]["is_valid"][0] == True:
+        #         if ins.split('_')[1] in test_filter:
+        #             continue
+        #         if np.array(self.f_combined[ins]["err_rotation"][:]).sum() > 180:
+        #             print(ins)
+        #         err_rotation.append(self.f_combined[ins]["err_rotation"][:])
+        #         err_translation.append(self.f_combined[ins]["err_translation"][:])
+        # err_rotation = np.array(err_rotation)
+        # err_translation = np.array(err_translation)
+
+        # import pdb
+        # pdb.set_trace()
+
     def process_ANCSH(self, gt=False, do_eval=True):
         self.do_eval = do_eval
         self.results = []

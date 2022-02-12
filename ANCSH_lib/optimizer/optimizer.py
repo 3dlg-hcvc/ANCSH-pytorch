@@ -29,6 +29,13 @@ class ANCSHOptimizer:
         self.f_npcs = h5py.File(npcs_results_path, "r")
         self.instances = sorted(self.f_ancsh.keys())
         self.log.info(f"Load the data: {time()-start} seconds")
+        
+        # test_instances = []
+        # for instance in self.instances:
+        #     if instance.split("_")[1] == "0042" or instance.split("_")[1] == "0014":
+        #         test_instances.append(instance)
+
+        # self.instances = test_instances[:10] + self.instances[-10:]
 
     def optimize(self, process_num=4, do_eval=True):
         self.do_eval = do_eval
