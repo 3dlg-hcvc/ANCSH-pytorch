@@ -3,6 +3,7 @@ config_logs/
 data*/
 result*
 test*
+visualization/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
