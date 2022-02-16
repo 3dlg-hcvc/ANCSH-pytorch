@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=6         # Number of CPUs (per task)
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=shawn_jiang@sfu.ca
-#SBATCH --output=/home/hanxiao/scratch/proj-motionnet/ancsh_output/npcs/%x_%j.out
+#SBATCH --output=/home/hanxiao/projects/rrg-msavva/hanxiao/proj-motionnet/ancsh_output/npcs/%x_%j.out
 #SBATCH --job-name=npcs
 echo 'Start'
 
@@ -17,7 +17,7 @@ module load python/3.7
 module load cuda/11.0
 module load cudnn/8.0.3
 
-source /home/hanxiao/scratch/proj-motionnet/ancsh_env/bin/activate
+source /home/hanxiao/projects/rrg-msavva/hanxiao/proj-motionnet/ancsh_env/bin/activate
 export PROJ_DIR=/home/hanxiao/projects/rrg-msavva/hanxiao/proj-motionnet/ANCSH-pytorch
 
 echo 'Job Start'
