@@ -9,7 +9,8 @@ import hydra
 from hydra.utils import get_original_cwd
 from omegaconf import DictConfig, OmegaConf
 
-from ANCSH_lib import ANCSHOptimizer, utils
+from ANCSH_lib import utils
+from ANCSH_lib.optimizer.optimizer import ANCSHOptimizer
 from tools.utils import io
 
 log = logging.getLogger('optimize')

@@ -21,7 +21,7 @@ def main(cfg: DictConfig):
     log.info(f'Instances in dataset have {num_parts} parts')
 
     evaluator = ANCSHEvaluator(cfg, combined_result_path, num_parts=num_parts)
-    evaluator.process_ANCSH(do_eval=False)
+    evaluator.process_ANCSH(do_eval=True)
 
 
 if __name__ == "__main__":
