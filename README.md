@@ -5,7 +5,7 @@ This repository contains the implementation of the paper *[Category-Level Articu
 Checkout the official code release for the paper at [dragonlong/articulated-pose](https://github.com/dragonlong/articulated-pose)..
 <p align="center"><img src="fig/ANCSH.png" width="100%"></p>
 
-[Paper](https://arxiv.org/abs/1912.11913)&nbsp; [Project](https://articulated-pose.github.io/)
+[Paper](https://arxiv.org/abs/1912.11913)&nbsp; [Website](https://articulated-pose.github.io/)
 
 ## Content
 - [Additional Repo](Additional-Repo)
@@ -18,7 +18,7 @@ Checkout the official code release for the paper at [dragonlong/articulated-pose
 
 ## Additional-Repo
 
-- OPD: In this paper, we reimplement ANCSH using PyTorch for a comparison. For details, check the [OPD](https://github.com/3dlg-hcvc/OPD) repo.
+- OPD: In this paper, we reimplement ANCSH using PyTorch for a comparison. For details, check the [OPD](https://3dlg-hcvc.github.io/OPD/) website.
 
 ## Setup
 The implementation has been tested on Ubuntu 20.04, with PyTorch 1.7.1, CUDA 11 and CUDNN 8.0.3.
