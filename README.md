@@ -38,10 +38,10 @@ pip install "git+git://github.com/erikwijmans/Pointnet2_PyTorch.git#egg=pointnet
 (If meeting `unauthenticated git protocol on port 9418` ), run `git config --global url."https://".insteadOf git://` for above last command to install pointnet2_ops_lib)
 
 ## Dataset
-You can download the original processed [eyeglasses]() (eyeglasses_ancsh) and our [OneDoor]() (dataset) dataset for ANCSH to **./dataset** folder (there is one dataset.tar.gz under /dataset/ANCSH).
+You can download the original processed `[eyeglasses]` (eyeglasses_ancsh) and our `[OneDoor]` (dataset) [dataset](https://aspis.cmpt.sfu.ca/projects/motionnet/opd/dataset/ANCSH/dataset.tar.gz) for ANCSH to **./dataset** folder (there is one dataset.tar.gz under /dataset/ANCSH).
 
 ## Pretrained-Models
-You can download our pretrained [models]() to **./models** folder (there is one models.tar.gz under /models/ANCSH).
+You can download our pretrained [models](https://aspis.cmpt.sfu.ca/projects/motionnet/opd/models/ANCSH/models.tar.gz) to **./models** folder (there is one models.tar.gz under /models/ANCSH).
 
 `[eyeglasses-ancsh]`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`[eyeglasses-npcs]`
 
