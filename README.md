@@ -76,7 +76,7 @@ We use hydra in this project, please modify the config files in `configs/paths` 
 
 ## Inference&Optimization 
 
-* Inference with pretrined Model
+* Inference with pretrained Model
     ```sh
     python train.py \
     network=<NETWORK_TYPE> \
